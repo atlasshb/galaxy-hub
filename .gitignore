@@ -3,6 +3,10 @@ data.json
 titles_override.json
 *.log
 
+# Machine-specific recon/debug captures
+RECON.md
+*_raw.txt
+
 # OS / editor noise
 Thumbs.db
 .DS_Store

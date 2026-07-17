@@ -1,9 +1,12 @@
 # Session Atlas
 
-**The missing layer over Claude Code's flat session list.**
+**A full local workspace for Claude Code — the UI it should have shipped with.**
 
-Claude Code stores every conversation as a `.jsonl` transcript, but the UI only shows you a flat list. Session Atlas is a zero-dependency local overlay that reads your session store (read-only) and gives you:
+Claude Code stores every conversation as a `.jsonl` transcript, but the UI only shows you a flat list. Session Atlas is a zero-dependency local workspace that reads your session store (read-only) and gives you:
 
+- 💬 **Chat** — read any session as a proper thread, then **prompt right there**: new sessions or resume existing ones, streamed live through the Claude Code CLI, with `/` skill autocomplete
+- 📁 **Projects** — browse every project folder Claude Code knows, jump into a session in any of them
+- 🧩 **Skills** & 🧠 **Memory** — see every skill and memory file you've built, one click from using them
 - 🗂️ **Tiles** — sessions auto-grouped into topic clusters (TF-IDF, no API calls, fully local)
 - 🌳 **Tree** — project → topic → session hierarchy
 - 🕸️ **Graph** — an Obsidian-style force-directed graph of your sessions; edges are topic similarity
@@ -25,8 +28,12 @@ python session_atlas.py            # index your store, then serve
 | `--port N` | `8877` | port |
 | `--index-only` | | rebuild `data.json` and exit |
 | `--serve` | | serve without re-indexing |
+| `--enable-run` | off | allow the Chat tab to actually run the `claude` CLI |
+| `--run-timeout N` | `900` | seconds before a chat process is killed |
 
 The **Refresh** button in the UI re-indexes on demand. `data.json` (your indexed session metadata) stays on your machine and is gitignored — never commit it.
+
+> ⚠️ **`--enable-run` executes the Claude Code CLI with your permissions.** It is off by default; without it the Chat tab is read-only (browse threads, no prompting). Never combine `--enable-run` with a non-loopback `--bind` unless everyone on that network is trusted — anyone who can reach the port can drive an agent on your machine.
 
 ## How it works
 
