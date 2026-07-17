@@ -1,0 +1,10 @@
+# Indexed session data — contains YOUR conversation metadata. Never commit.
+data.json
+titles_override.json
+*.log
+
+# OS / editor noise
+Thumbs.db
+.DS_Store
+__pycache__/
+*.pyc
