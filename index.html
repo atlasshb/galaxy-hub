@@ -6,12 +6,24 @@
 <title>Session Atlas</title>
 <style>
   :root{
+    color-scheme: dark;
     --bg:#0d1117;
     --panel:#161b22;
     --border:#30363d;
     --text:#c9d1d9;
     --accent:#58a6ff;
     --muted:#8b949e;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      color-scheme: light;
+      --bg:#ffffff;
+      --panel:#f6f8fa;
+      --border:#d0d7de;
+      --text:#24292f;
+      --accent:#0969da;
+      --muted:#57606a;
+    }
   }
   *{box-sizing:border-box;}
   html,body{height:100%;margin:0;}
