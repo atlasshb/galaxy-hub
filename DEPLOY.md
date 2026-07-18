@@ -78,8 +78,9 @@ python3 stardrive.py --enable-run
 ```
 
 **Never** combine `--enable-run` with a non-loopback `--bind` — that hands agent
-execution to anyone who can reach the port. (Token-authenticated direct binding for
-trusted tailnets is on the hardening roadmap; until it ships, use the SSH tunnel.)
+execution to anyone who can reach the port. (To reach it from another device without a tunnel, bind your tailnet interface and
+set `--token <secret>` — the server refuses to bind a non-loopback interface without
+one. Open `http://host:port/?token=<secret>` once; a HttpOnly cookie keeps you signed in.)
 
 ## Keeping it fresh
 
