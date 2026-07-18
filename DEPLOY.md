@@ -14,8 +14,8 @@ target and the reference platform.
 ## Local run (30 seconds)
 
 ```bash
-git clone https://github.com/atlasshb/session-atlas
-cd session-atlas
+git clone https://github.com/atlasshb/galaxy-hub
+cd galaxy-hub
 python3 stardrive.py          # indexes your store, then serves
 # open http://127.0.0.1:8877
 ```
@@ -24,15 +24,16 @@ It reads `~/.claude/projects` **read-only** and binds **loopback only** by defau
 
 ## Running on a remote desktop — the secure pattern
 
-**Do not** expose Stardrive to your network. It has no authentication yet, and your
-transcripts may contain secrets. Instead, keep it loopback-only on the remote box and
-reach it over SSH — Stardrive never leaves `127.0.0.1`, so nobody but you can touch it.
+**Do not** expose an *unauthenticated* server to your network — your transcripts may
+contain secrets. You have two safe options: keep it loopback-only and reach it over SSH
+(the zero-config route below, where the server never leaves `127.0.0.1`), **or** bind
+your tailnet interface and require a `--token` (see [the Chat feature](#the-chat-run-feature-on-a-remote-box)) — the server refuses to bind a public interface without one.
 
 On the remote desktop, keep it running (pick one):
 
 ```bash
 # simplest: a detached tmux session
-tmux new -d -s stardrive 'cd ~/session-atlas && python3 stardrive.py'
+tmux new -d -s stardrive 'cd ~/galaxy-hub && python3 stardrive.py'
 ```
 
 or as a **systemd user service** (survives logout, restarts on boot):
@@ -44,8 +45,8 @@ Description=Stardrive — local Claude session workspace
 After=network.target
 
 [Service]
-WorkingDirectory=%h/session-atlas
-ExecStart=/usr/bin/python3 %h/session-atlas/stardrive.py --port 8877
+WorkingDirectory=%h/galaxy-hub
+ExecStart=/usr/bin/python3 %h/galaxy-hub/stardrive.py --port 8877
 Restart=on-failure
 
 [Install]
@@ -78,8 +79,9 @@ python3 stardrive.py --enable-run
 ```
 
 **Never** combine `--enable-run` with a non-loopback `--bind` — that hands agent
-execution to anyone who can reach the port. (Token-authenticated direct binding for
-trusted tailnets is on the hardening roadmap; until it ships, use the SSH tunnel.)
+execution to anyone who can reach the port. (To reach it from another device without a tunnel, bind your tailnet interface and
+set `--token <secret>` — the server refuses to bind a non-loopback interface without
+one. Open `http://host:port/?token=<secret>` once; a HttpOnly cookie keeps you signed in.)
 
 ## Keeping it fresh
 
@@ -89,7 +91,7 @@ button re-indexes on demand. `data.json` stays on your machine and is gitignored
 ## Updating / removing
 
 ```bash
-cd ~/session-atlas && git pull          # update
+cd ~/galaxy-hub && git pull          # update
 ```
 
 To remove: stop the service and delete the folder. Stardrive only ever writes

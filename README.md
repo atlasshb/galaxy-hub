@@ -114,7 +114,7 @@ One place for everything Claude Code carries between sessions: your **memory** a
 <tr>
 <td width="45%">
 
-Sessions and messages over time, per-project and per-cluster activity, and **cost / token totals** when your store carries them. The data layer already ships — a `GET /api/usage` endpoint aggregates it all at index time — and the charts are hand-rolled inline SVG, so the zero-dependency law holds. **The Dashboard app UI is in progress**; the backend it reads from is live today.
+Sessions and messages over time, per-project and per-cluster activity, and **cost / token totals** when your store carries them. The data layer already ships — a `GET /api/usage` endpoint aggregates it all at index time — and the charts are hand-rolled inline SVG — no chart library — so the zero-dependency law holds. Both the `/api/usage` data layer and the Dashboard app **ship today**.
 
 </td>
 <td width="55%">
@@ -202,6 +202,7 @@ That's it — no `pip install`. Python 3.8+ is the only requirement (plus the `c
 | `--serve` | | serve without re-indexing |
 | `--enable-run` | off | allow Stardrive to actually run the `claude` CLI |
 | `--run-timeout N` | `900` | seconds before a chat process is killed |
+| `--token TOKEN` | off | require this bearer token on every request — needed to bind a non-loopback interface |
 
 </details>
 
@@ -223,6 +224,7 @@ Your transcripts contain your prompts, code, and possibly secrets. Galaxy Hub tr
 - **Loopback by default** — it binds `127.0.0.1` and validates the `Host` header; a Host allowlist plus cross-origin POST rejection defend against DNS-rebinding and CSRF from any website you happen to have open.
 - **Zero external requests** — no CDN, no fonts, no analytics, from either the server or the page. Everything is inline.
 - **`--enable-run` is opt-in.** Without it, chat is read-only (browse threads, no prompting). The spawn path uses direct exec — no shell — so a prompt can't inject commands. Never combine `--enable-run` with a non-loopback `--bind` on an untrusted network.
+- **`--token` for LAN / tailnet.** To reach Galaxy Hub from another device without an SSH tunnel, bind your tailnet interface and set `--token <secret>` — every request must then present the token, and the server *refuses to start* on a non-loopback interface without one. Open `http://host:port/?token=<secret>` once; a HttpOnly cookie keeps the session signed in.
 
 ---
 

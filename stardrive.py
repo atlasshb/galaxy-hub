@@ -10,6 +10,8 @@ index.html on the tailnet. Python 3 stdlib only. See BUILD-SPEC.md.
 
 import argparse
 import glob
+import hmac
+import ipaddress
 import json
 import logging
 import math
@@ -74,6 +76,9 @@ WS_RE = re.compile(r"\s+")
 # via is_safe_name() which additionally rejects "." / "..".
 NAME_RE = re.compile(r"\A[A-Za-z0-9._-]+\Z")
 FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n?", re.DOTALL)
+# Phase 1: redacts a ?token=<value> query param out of logged request lines
+# (see StardriveHandler.log_message) — the token is never written to disk.
+_TOKEN_QS_RE = re.compile(r"([?&]token=)[^&\s\"]*")
 
 
 def is_safe_name(s):
@@ -93,10 +98,18 @@ USAGE_CACHE = {}  # Dashboard /api/usage aggregate, rebuilt by run_index() (see 
 
 ACTIVE_LOCK = threading.Lock()
 ACTIVE_PROCS = {}  # pid -> subprocess.Popen, chat children currently streaming
+# Orchestration: parallel run registry (pid -> live metadata), guarded by the
+# SAME ACTIVE_LOCK as ACTIVE_PROCS. Populated alongside pid registration and
+# popped in the same cleanup path; live state only, never persisted.
+RUNS = {}  # pid -> {"pid","prompt"(cap 120),"cwd","resume","started","status"}
 RESERVED_SLOTS = 0  # L3: chat slots reserved between the cap check and pid registration
 
 ENABLE_RUN = False
 RUN_TIMEOUT = DEFAULT_RUN_TIMEOUT
+
+# Phase 1: optional bearer-token auth. None = no auth (loopback-only mode,
+# unchanged behavior). Set by --token; never logged.
+TOKEN = None
 
 # H1: Host-header allowlist (DNS-rebinding defense). Populated by start_server()
 # from the actual bound host + port; only these Host values are served.
@@ -1313,7 +1326,12 @@ class StardriveHandler(BaseHTTPRequestHandler):
     server_version = "Stardrive/3.0"
 
     def log_message(self, fmt, *args):
-        logger.info("%s - %s", self.address_string(), fmt % args)
+        # Phase 1: the access log otherwise echoes the raw request line
+        # (BaseHTTPRequestHandler default), and ?token=<value> is now a valid
+        # auth channel — redact it here so a token never lands in the log
+        # file, matching the "never log the token" rule for the startup line.
+        msg = _TOKEN_QS_RE.sub(r"\1***", fmt % args)
+        logger.info("%s - %s", self.address_string(), msg)
 
     def _send_json(self, obj, status=200):
         body = json.dumps(obj).encode("utf-8")
@@ -1324,13 +1342,15 @@ class StardriveHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _send_file(self, path, content_type):
+    def _send_file(self, path, content_type, extra_headers=None):
         with open(path, "rb") as f:
             body = f.read()
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-cache")
+        for name, value in extra_headers or []:
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(body)
 
@@ -1406,6 +1426,45 @@ class StardriveHandler(BaseHTTPRequestHandler):
                 return True
         elif origin:  # Origin: null (sandboxed/file: context) is not same-origin
             self._send_json({"error": "cross-origin request rejected"}, status=403)
+            return True
+        return False
+
+    # -- Phase 1: optional bearer-token auth --------------------------------
+
+    def _extract_token_with_source(self, qs):
+        """Pull a candidate token from, in priority order: Authorization:
+        Bearer header, ?token= query param, gh_token cookie. Returns
+        (token_or_None, source) where source is "header"/"query"/"cookie"/None.
+        Does not itself validate against TOKEN — callers compare_digest it."""
+        auth = self.headers.get("Authorization")
+        if auth:
+            scheme, _, value = auth.partition(" ")
+            if scheme.strip().lower() == "bearer" and value.strip():
+                return value.strip(), "header"
+        if qs:
+            qtok = (qs.get("token") or [None])[0]
+            if qtok:
+                return qtok, "query"
+        cookie_header = self.headers.get("Cookie")
+        if cookie_header:
+            for part in cookie_header.split(";"):
+                name, sep, val = part.strip().partition("=")
+                if sep and name == "gh_token" and val:
+                    return val, "cookie"
+        return None, None
+
+    def _reject_bad_token(self, qs):
+        """Auth gate: when --token is configured, every request (GET and POST
+        alike) must carry a matching token via Authorization: Bearer, ?token=,
+        or the gh_token cookie (constant-time compare). No-op — returns False
+        immediately — when no --token was configured (loopback-only mode,
+        unchanged behavior). Returns True (and sends 401) on missing/invalid
+        token."""
+        if not TOKEN:
+            return False
+        supplied, _source = self._extract_token_with_source(qs)
+        if not supplied or not hmac.compare_digest(supplied, TOKEN):
+            self._send_json({"error": "unauthorized"}, status=401)
             return True
         return False
 
@@ -1499,10 +1558,22 @@ class StardriveHandler(BaseHTTPRequestHandler):
             self._send_json({"error": "failed to spawn claude: %s" % e}, status=500)
             return
 
-        # L3: convert the reservation into a registered pid atomically.
+        # L3: convert the reservation into a registered pid atomically. The
+        # Orchestration RUNS registry is populated in the SAME locked step, so a
+        # client enumerating live runs never sees a pid in ACTIVE_PROCS but not
+        # RUNS (or vice versa). Timestamp comes from the request-handler clock.
+        started = datetime.now(timezone.utc).isoformat()
         with ACTIVE_LOCK:
             RESERVED_SLOTS -= 1
             ACTIVE_PROCS[proc.pid] = proc
+            RUNS[proc.pid] = {
+                "pid": proc.pid,
+                "prompt": prompt[:120],  # never store the prompt beyond the cap
+                "cwd": run_cwd,
+                "resume": resume,
+                "started": started,
+                "status": "running",
+            }
         logger.info("chat spawn pid=%s resume=%s cwd=%s", proc.pid, resume, run_cwd)
 
         timed_out = {"v": False}
@@ -1544,6 +1615,7 @@ class StardriveHandler(BaseHTTPRequestHandler):
             code = proc.poll()
             with ACTIVE_LOCK:
                 ACTIVE_PROCS.pop(proc.pid, None)
+                RUNS.pop(proc.pid, None)
             logger.info("chat pid=%s exited code=%s", proc.pid, code)
             if not client_gone:
                 try:
@@ -1563,9 +1635,26 @@ class StardriveHandler(BaseHTTPRequestHandler):
             path = parsed.path
             qs = parse_qs(parsed.query)
 
+            if self._reject_bad_token(qs):
+                return
+
             if path == "/":
+                # Browser bootstrap (Phase 1): a valid token supplied via the
+                # header or ?token= (NOT already via cookie) sets gh_token as
+                # an HttpOnly cookie before serving index.html, so a one-time
+                # visit to /?token=XXX is enough for the SPA's later
+                # same-origin fetches to carry auth with no frontend change.
+                # When TOKEN is unset this block is skipped entirely and the
+                # response is byte-for-byte identical to before.
+                extra_headers = None
+                if TOKEN:
+                    supplied, source = self._extract_token_with_source(qs)
+                    if source in ("header", "query"):
+                        extra_headers = [
+                            ("Set-Cookie", "gh_token=%s; HttpOnly; SameSite=Strict; Path=/" % supplied)
+                        ]
                 if os.path.isfile(INDEX_HTML):
-                    self._send_file(INDEX_HTML, "text/html; charset=utf-8")
+                    self._send_file(INDEX_HTML, "text/html; charset=utf-8", extra_headers=extra_headers)
                 else:
                     self._send_json({"error": "index.html not found"}, status=404)
 
@@ -1626,9 +1715,16 @@ class StardriveHandler(BaseHTTPRequestHandler):
                 self._send_json({"file": file_param, "content": content})
 
             elif path == "/api/chat/active":
+                # Snapshot count + the RUNS registry under the lock so the
+                # Orchestration board can enumerate/reconnect. Backward-compatible:
+                # "count" is the new documented key; "active" is retained so any
+                # pre-Orchestration caller keeps working; "max" is unchanged.
                 with ACTIVE_LOCK:
                     n = len(ACTIVE_PROCS)
-                self._send_json({"active": n, "max": MAX_CHAT_PROCS})
+                    runs = [dict(r) for r in RUNS.values()]
+                self._send_json(
+                    {"count": n, "active": n, "max": MAX_CHAT_PROCS, "runs": runs}
+                )
 
             else:
                 self._send_json({"error": "not found"}, status=404)
@@ -1643,7 +1739,13 @@ class StardriveHandler(BaseHTTPRequestHandler):
         try:
             if self._reject_bad_host():
                 return
-            path = urlsplit(self.path).path
+            parsed = urlsplit(self.path)
+            path = parsed.path
+            qs = parse_qs(parsed.query)
+
+            if self._reject_bad_token(qs):
+                return
+
             # H1: all state-changing POSTs are CSRF-guarded (Sec-Fetch-Site / Origin).
             if path in ("/refresh", "/api/chat", "/api/chat/stop"):
                 if self._reject_cross_origin():
@@ -1703,6 +1805,21 @@ class StardriveHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": str(e)}, status=500)
             except Exception:
                 pass
+
+
+def is_loopback_bind(host):
+    """True if `host` is a loopback address/name that never leaves the
+    machine: 'localhost', 127.0.0.0/8 (IPv4), or ::1 (IPv6) — no DNS lookup
+    involved. Anything else (0.0.0.0, a LAN/tailnet IP, a hostname) is
+    non-loopback and, per the --token safe-by-default gate in main(), requires
+    --token to start."""
+    h = (host or "").strip().lower()
+    if h == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(h).is_loopback
+    except ValueError:
+        return False
 
 
 def compute_allowed_hosts(bound, port):
@@ -1794,7 +1911,7 @@ def load_usage_cache_from_disk():
 
 
 def main():
-    global STORE_DIR, ENABLE_RUN, RUN_TIMEOUT
+    global STORE_DIR, ENABLE_RUN, RUN_TIMEOUT, TOKEN, MAX_CHAT_PROCS
     parser = argparse.ArgumentParser(description="Stardrive indexer + server")
     parser.add_argument("--index-only", action="store_true", help="index once and exit")
     parser.add_argument("--serve", action="store_true", help="index if stale, then serve")
@@ -1812,18 +1929,57 @@ def main():
         default=DEFAULT_RUN_TIMEOUT,
         help="kill a spawned chat process after N seconds (default: 900)",
     )
+    parser.add_argument(
+        "--max-runs",
+        type=int,
+        default=3,
+        help="max concurrent chat/run processes, 1..8 inclusive (default: 3)",
+    )
+    parser.add_argument(
+        "--token",
+        default=None,
+        help="require this bearer token on every request (Authorization: Bearer, "
+        "?token=, or gh_token cookie); required to bind a non-loopback --bind",
+    )
     args = parser.parse_args()
+
+    # Phase 1 safe-by-default: a non-loopback --bind with no --token would
+    # serve every session, unauthenticated, to anyone who can reach the port.
+    # Loopback binds (127.0.0.0/8, ::1, localhost) with no token are unchanged
+    # from today (no auth). Refuse immediately, before any indexing work.
+    if not is_loopback_bind(args.bind) and not args.token:
+        print(
+            "refusing to bind %s without --token; anyone who can reach the port "
+            "could read your sessions" % args.bind,
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Orchestration: --max-runs sets the concurrency cap. Hard cap 8 (spec);
+    # reject out-of-range at startup, before any indexing work. The atomic
+    # slot-reservation mechanism in _handle_chat is unchanged — only the value
+    # of MAX_CHAT_PROCS it compares against.
+    if args.max_runs < 1 or args.max_runs > 8:
+        print(
+            "invalid --max-runs %d: must be between 1 and 8 inclusive"
+            % args.max_runs,
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     STORE_DIR = os.path.expanduser(args.root)
     ENABLE_RUN = args.enable_run
     RUN_TIMEOUT = args.run_timeout
+    TOKEN = args.token
+    MAX_CHAT_PROCS = args.max_runs
 
     configure_logging()
     logger.info(
-        "stardrive start (store=%s, enable_run=%s, run_timeout=%s)",
+        "stardrive start (store=%s, enable_run=%s, run_timeout=%s, auth=%s)",
         STORE_DIR,
         ENABLE_RUN,
         RUN_TIMEOUT,
+        "on" if TOKEN else "off",
     )
 
     if args.index_only:
