@@ -14,8 +14,8 @@ target and the reference platform.
 ## Local run (30 seconds)
 
 ```bash
-git clone https://github.com/atlasshb/session-atlas
-cd session-atlas
+git clone https://github.com/atlasshb/galaxy-hub
+cd galaxy-hub
 python3 stardrive.py          # indexes your store, then serves
 # open http://127.0.0.1:8877
 ```
@@ -32,7 +32,7 @@ On the remote desktop, keep it running (pick one):
 
 ```bash
 # simplest: a detached tmux session
-tmux new -d -s stardrive 'cd ~/session-atlas && python3 stardrive.py'
+tmux new -d -s stardrive 'cd ~/galaxy-hub && python3 stardrive.py'
 ```
 
 or as a **systemd user service** (survives logout, restarts on boot):
@@ -44,8 +44,8 @@ Description=Stardrive — local Claude session workspace
 After=network.target
 
 [Service]
-WorkingDirectory=%h/session-atlas
-ExecStart=/usr/bin/python3 %h/session-atlas/stardrive.py --port 8877
+WorkingDirectory=%h/galaxy-hub
+ExecStart=/usr/bin/python3 %h/galaxy-hub/stardrive.py --port 8877
 Restart=on-failure
 
 [Install]
@@ -90,7 +90,7 @@ button re-indexes on demand. `data.json` stays on your machine and is gitignored
 ## Updating / removing
 
 ```bash
-cd ~/session-atlas && git pull          # update
+cd ~/galaxy-hub && git pull          # update
 ```
 
 To remove: stop the service and delete the folder. Stardrive only ever writes
