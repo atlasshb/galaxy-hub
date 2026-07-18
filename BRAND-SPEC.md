@@ -3,7 +3,7 @@
 Stardrive is a public open-source project. Its identity should be **ownable and
 reel-worthy**: a cartographer's instrument for your AI work history — not a GitHub
 clone, not a Claude imitation. Metaphor: **star charts / atlases** — your sessions
-are a territory; Atlas maps it.
+are a territory; Stardrive charts it.
 
 ## The law still applies
 

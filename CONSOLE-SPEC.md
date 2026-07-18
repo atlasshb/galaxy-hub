@@ -30,8 +30,8 @@ Message shape becomes:
 ### 2. Chat process control
 
 - Immediately after `_sse_start()`, before forwarding CLI lines, emit
-  `data: {"type":"atlas_started","pid":<proc.pid>}\n\n`.
-- `POST /api/chat/stop`, body `{"pid": N}` — gated by `--enable-run` (403 otherwise, same error shape as `/api/chat`). Validate: pid must be an int AND a key in `ACTIVE_PROCS` (400 non-int, 404 unknown — **never** signal a pid that isn't in the registry). Action: `terminate()`, and if still alive after 3s, `kill()` (do the wait in a daemon thread so the response returns immediately). Respond `{"ok": true}`. The `/api/chat` streaming loop then finishes naturally (stdout EOF → `atlas_done`).
+  `data: {"type":"stardrive_started","pid":<proc.pid>}\n\n`.
+- `POST /api/chat/stop`, body `{"pid": N}` — gated by `--enable-run` (403 otherwise, same error shape as `/api/chat`). Validate: pid must be an int AND a key in `ACTIVE_PROCS` (400 non-int, 404 unknown — **never** signal a pid that isn't in the registry). Action: `terminate()`, and if still alive after 3s, `kill()` (do the wait in a daemon thread so the response returns immediately). Respond `{"ok": true}`. The `/api/chat` streaming loop then finishes naturally (stdout EOF → `stardrive_done`).
 - Keep `GET /api/chat/active` as-is.
 
 ### 3. Nothing else moves
@@ -52,7 +52,7 @@ Indexer, clustering, data.json contract, `/api/projects`, `/api/skills`, `/api/m
 - **Thinking**: collapsed "✳ thinking" row, click to expand the capped text. Subdued/italic styling.
 - **Turn grouping**: consecutive assistant messages render as one visual group (avatar/label shown once).
 - **Turn stats footer**: on the stream `result` event render a subtle footer line under the turn: `✓ 12.3s · $0.0421 · 8.1k in / 2.4k out · 3 turns` from `duration_ms`, `total_cost_usd`, `usage.input_tokens`/`usage.output_tokens`, `num_turns` (render only fields present; errors show `✕` + subtype).
-- **Stop**: while streaming, the Send button becomes **Stop** → `POST /api/chat/stop {pid}` (pid from `atlas_started`). Keep composer re-enable logic driven by `atlas_done` exactly as now.
+- **Stop**: while streaming, the Send button becomes **Stop** → `POST /api/chat/stop {pid}` (pid from `stardrive_started`). Keep composer re-enable logic driven by `stardrive_done` exactly as now.
 - **Typing indicator**: three pulsing dots in an assistant bubble from send until the first assistant/tool event.
 
 ### Markdown (still hand-rolled, escape-first, no libs)
@@ -76,7 +76,7 @@ works, type-to-filter live. Section label on each row (session/project/skill/act
 Keep the dark palette as default. Add a light theme via `:root[data-theme="light"]`
 overrides of the existing CSS variables (pick accessible equivalents; cluster palette
 may stay shared). Toggle button in header (☾/☀), persisted to
-`localStorage["atlas-theme"]`, applied before first paint (inline script in `<head>`
+`localStorage["stardrive-theme"]`, applied before first paint (inline script in `<head>`
 reading localStorage) to avoid flash.
 
 ### Visual polish (the reel-worthy layer — all vanilla CSS, zero external assets)

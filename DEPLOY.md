@@ -1,6 +1,6 @@
-# Running Meridian on Linux (incl. a remote desktop)
+# Running Stardrive on Linux (incl. a remote desktop)
 
-Meridian is a single Python file (stdlib only) + one HTML file. There is nothing to
+Stardrive is a single Python file (stdlib only) + one HTML file. There is nothing to
 build and nothing to install. It runs anywhere Python 3.8+ runs; Linux is the primary
 target and the reference platform.
 
@@ -24,23 +24,23 @@ It reads `~/.claude/projects` **read-only** and binds **loopback only** by defau
 
 ## Running on a remote desktop — the secure pattern
 
-**Do not** expose Meridian to your network. It has no authentication yet, and your
+**Do not** expose Stardrive to your network. It has no authentication yet, and your
 transcripts may contain secrets. Instead, keep it loopback-only on the remote box and
-reach it over SSH — Meridian never leaves `127.0.0.1`, so nobody but you can touch it.
+reach it over SSH — Stardrive never leaves `127.0.0.1`, so nobody but you can touch it.
 
 On the remote desktop, keep it running (pick one):
 
 ```bash
 # simplest: a detached tmux session
-tmux new -d -s meridian 'cd ~/session-atlas && python3 stardrive.py'
+tmux new -d -s stardrive 'cd ~/session-atlas && python3 stardrive.py'
 ```
 
 or as a **systemd user service** (survives logout, restarts on boot):
 
 ```ini
-# ~/.config/systemd/user/meridian.service
+# ~/.config/systemd/user/stardrive.service
 [Unit]
-Description=Meridian — local Claude session workspace
+Description=Stardrive — local Claude session workspace
 After=network.target
 
 [Service]
@@ -54,7 +54,7 @@ WantedBy=default.target
 
 ```bash
 systemctl --user daemon-reload
-systemctl --user enable --now meridian
+systemctl --user enable --now stardrive
 loginctl enable-linger "$USER"     # keep it running when you're logged out
 ```
 
@@ -92,5 +92,5 @@ button re-indexes on demand. `data.json` stays on your machine and is gitignored
 cd ~/session-atlas && git pull          # update
 ```
 
-To remove: stop the service and delete the folder. Meridian only ever writes
+To remove: stop the service and delete the folder. Stardrive only ever writes
 `data.json` and its log inside its own directory — it never writes into `~/.claude`.
