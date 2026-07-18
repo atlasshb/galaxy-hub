@@ -46,6 +46,7 @@ BIND_FALLBACK = "127.0.0.1"
 
 MAX_LINES = 4000
 MAX_BYTES = 5 * 1024 * 1024
+MAX_LINE_BYTES = 4 * 1024 * 1024   # M1: per-logical-line read ceiling (bounds memory on newline-free files)
 MAX_DOC_MSGS = 20
 MAX_DOC_CHARS = 6000
 TITLE_MAX_LEN = 70
@@ -66,8 +67,17 @@ MAX_CHAT_BODY_BYTES = 1 * 1024 * 1024
 TOKEN_RE = re.compile(r"[a-z][a-z0-9_-]{2,}")
 HEX_RE = re.compile(r"^[0-9a-f-]{8,}$")
 WS_RE = re.compile(r"\s+")
-NAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+# L4: full-string anchors (\A..\Z, not ^..$ which admits a trailing newline); use
+# via is_safe_name() which additionally rejects "." / "..".
+NAME_RE = re.compile(r"\A[A-Za-z0-9._-]+\Z")
 FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n?", re.DOTALL)
+
+
+def is_safe_name(s):
+    """A path component safe to join under the store root: non-empty, only
+    [A-Za-z0-9._-], and never "." or ".." (defense-in-depth; the realpath-prefix
+    check in resolve_under_store is the actual traversal barrier)."""
+    return isinstance(s, str) and s not in (".", "..") and NAME_RE.fullmatch(s) is not None
 
 # ---------------------------------------------------------------------------
 # v2 mutable server state (guarded by locks; ThreadingHTTPServer = one thread
@@ -79,9 +89,14 @@ PROJECTS_CACHE = []  # list of {dir,label,sessions,lastActivity}, rebuilt by run
 
 ACTIVE_LOCK = threading.Lock()
 ACTIVE_PROCS = {}  # pid -> subprocess.Popen, chat children currently streaming
+RESERVED_SLOTS = 0  # L3: chat slots reserved between the cap check and pid registration
 
 ENABLE_RUN = False
 RUN_TIMEOUT = DEFAULT_RUN_TIMEOUT
+
+# H1: Host-header allowlist (DNS-rebinding defense). Populated by start_server()
+# from the actual bound host + port; only these Host values are served.
+ALLOWED_HOSTS = frozenset()
 
 STOPWORDS = frozenset(
     """
@@ -191,13 +206,35 @@ def parse_session_file(path, session_id, override_title=None):
     bytes_read = 0
 
     with open(path, "r", encoding="utf-8-sig", errors="replace") as f:
-        for raw_line in f:
+        while True:
+            raw_line = f.readline(MAX_LINE_BYTES)
+            if raw_line == "":
+                break
             total_lines += 1
             if total_lines > MAX_LINES:
                 break
             bytes_read += len(raw_line.encode("utf-8", "replace"))
             if bytes_read > MAX_BYTES:
                 break
+            # M1: a logical line that filled MAX_LINE_BYTES without a newline is
+            # oversized — skip it, draining the remainder without buffering (bytes
+            # still counted so MAX_BYTES bounds total I/O).
+            if not raw_line.endswith("\n") and len(raw_line) >= MAX_LINE_BYTES:
+                over = False
+                while True:
+                    cont = f.readline(MAX_LINE_BYTES)
+                    if cont == "":
+                        break
+                    bytes_read += len(cont.encode("utf-8", "replace"))
+                    if bytes_read > MAX_BYTES:
+                        over = True
+                        break
+                    if cont.endswith("\n"):
+                        break
+                bad_lines += 1
+                if over:
+                    break
+                continue
             line = raw_line.strip()
             if not line:
                 continue
@@ -285,12 +322,12 @@ def load_titles_override():
 
 
 def resolve_under_store(*parts):
-    """Validate each path component against NAME_RE (no slashes, no '..', no
-    absolute paths possible), join under STORE_DIR, then verify the resolved
+    """Validate each path component with is_safe_name (no slashes, no '.'/'..',
+    no absolute paths possible), join under STORE_DIR, then verify the resolved
     realpath is actually inside STORE_DIR (realpath prefix check catches
     symlink/junction escapes). Returns the resolved absolute path, or None if
     any check fails."""
-    if not parts or any(not p or not NAME_RE.match(p) for p in parts):
+    if not parts or any(not is_safe_name(p) for p in parts):
         return None
     joined = os.path.join(STORE_DIR, *parts)
     real_root = os.path.realpath(STORE_DIR)
@@ -542,7 +579,10 @@ def build_transcript(path, session_id, override_title=None):
     tool_map = {}  # tool_use_id -> tool entry dict (mutable; late result attach)
 
     with open(path, "r", encoding="utf-8-sig", errors="replace") as f:
-        for raw_line in f:
+        while True:
+            raw_line = f.readline(MAX_LINE_BYTES)
+            if raw_line == "":
+                break
             total_lines += 1
             if total_lines > MAX_LINES:
                 truncated = True
@@ -551,6 +591,25 @@ def build_transcript(path, session_id, override_title=None):
             if bytes_read > MAX_BYTES:
                 truncated = True
                 break
+            # M1: a logical line that filled MAX_LINE_BYTES without a newline is
+            # oversized — skip it, draining the remainder without buffering (bytes
+            # still counted so MAX_BYTES bounds total I/O).
+            if not raw_line.endswith("\n") and len(raw_line) >= MAX_LINE_BYTES:
+                truncated = True
+                over = False
+                while True:
+                    cont = f.readline(MAX_LINE_BYTES)
+                    if cont == "":
+                        break
+                    bytes_read += len(cont.encode("utf-8", "replace"))
+                    if bytes_read > MAX_BYTES:
+                        over = True
+                        break
+                    if cont.endswith("\n"):
+                        break
+                if over:
+                    break
+                continue
             line = raw_line.strip()
             if not line:
                 continue
@@ -1159,9 +1218,55 @@ class AtlasHandler(BaseHTTPRequestHandler):
             return None, "invalid JSON body"
         return data, None
 
+    # -- H1: DNS-rebinding + CSRF defenses ----------------------------------
+
+    def _reject_bad_host(self):
+        """Host-header allowlist (primary DNS-rebinding defense) on ALL requests.
+        Returns True (and sends 403) when the Host is not an allowed loopback /
+        configured-bind value. A rebound DNS name resolving to 127.0.0.1 still
+        carries the attacker's Host, so this blocks the store read."""
+        host = (self.headers.get("Host") or "").strip().lower()
+        if host in ALLOWED_HOSTS:
+            return False
+        self._send_json({"error": "forbidden host"}, status=403)
+        return True
+
+    def _reject_cross_origin(self):
+        """Reject cross-origin state-changing POSTs. Sec-Fetch-Site is sent
+        automatically by modern browsers for the real same-origin UI (no frontend
+        change needed); an explicit cross-origin Origin is also refused. Returns
+        True (and sends 403) when the request looks cross-origin."""
+        sfs = self.headers.get("Sec-Fetch-Site")
+        if sfs is not None and sfs.strip().lower() not in ("same-origin", "none"):
+            self._send_json({"error": "cross-origin request rejected"}, status=403)
+            return True
+        origin = self.headers.get("Origin")
+        if origin and origin.strip().lower() != "null":
+            onetloc = urlsplit(origin.strip()).netloc.lower()
+            host = (self.headers.get("Host") or "").strip().lower()
+            if onetloc != host:
+                self._send_json({"error": "cross-origin request rejected"}, status=403)
+                return True
+        elif origin:  # Origin: null (sandboxed/file: context) is not same-origin
+            self._send_json({"error": "cross-origin request rejected"}, status=403)
+            return True
+        return False
+
+    def _reject_non_json_ct(self):
+        """Enforce Content-Type: application/json on POST bodies (kills the
+        text/plain CORS 'simple request' bypass). Returns True (and sends 415)
+        when the media type is not application/json."""
+        ct = self.headers.get("Content-Type", "")
+        media = ct.split(";", 1)[0].strip().lower()
+        if media == "application/json":
+            return False
+        self._send_json({"error": "Content-Type must be application/json"}, status=415)
+        return True
+
     # -- v2: POST /api/chat — headless CLI spawn, streamed as SSE -----------
 
     def _handle_chat(self, body):
+        global RESERVED_SLOTS
         prompt = body.get("prompt")
         resume = body.get("resume")
         cwd_req = body.get("cwd")
@@ -1170,7 +1275,7 @@ class AtlasHandler(BaseHTTPRequestHandler):
         if not isinstance(prompt, str) or not prompt.strip():
             self._send_json({"error": "prompt is required"}, status=400)
             return
-        if resume is not None and (not isinstance(resume, str) or not NAME_RE.match(resume)):
+        if resume is not None and not is_safe_name(resume):
             self._send_json({"error": "invalid resume id"}, status=400)
             return
         if perm_mode not in ("default", "acceptEdits", "bypassPermissions"):
@@ -1190,14 +1295,19 @@ class AtlasHandler(BaseHTTPRequestHandler):
             self._send_json({"error": "claude binary not found"}, status=500)
             return
 
+        # L3: atomically reserve a slot under the lock so concurrent requests
+        # can't slip past the cap between this check and pid registration below.
         with ACTIVE_LOCK:
-            if len(ACTIVE_PROCS) >= MAX_CHAT_PROCS:
+            if len(ACTIVE_PROCS) + RESERVED_SLOTS >= MAX_CHAT_PROCS:
                 self._send_json({"error": "too many concurrent chat processes"}, status=429)
                 return
+            RESERVED_SLOTS += 1
 
+        # L1: pass resume as a single --resume=<value> token so a dash-leading
+        # value can never be re-read as a separate flag.
         argv = [exe, "-p", prompt, "--output-format", "stream-json", "--verbose"]
         if resume:
-            argv += ["--resume", resume]
+            argv += ["--resume=%s" % resume]
         if perm_mode != "default":
             argv += ["--permission-mode", perm_mode]
 
@@ -1226,11 +1336,15 @@ class AtlasHandler(BaseHTTPRequestHandler):
             else:
                 proc = subprocess.Popen(argv, shell=False, **popen_kwargs)
         except OSError as e:
+            with ACTIVE_LOCK:
+                RESERVED_SLOTS -= 1
             logger.exception("failed to spawn claude binary")
             self._send_json({"error": "failed to spawn claude: %s" % e}, status=500)
             return
 
+        # L3: convert the reservation into a registered pid atomically.
         with ACTIVE_LOCK:
+            RESERVED_SLOTS -= 1
             ACTIVE_PROCS[proc.pid] = proc
         logger.info("chat spawn pid=%s resume=%s cwd=%s", proc.pid, resume, run_cwd)
 
@@ -1286,6 +1400,8 @@ class AtlasHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         try:
+            if self._reject_bad_host():
+                return
             parsed = urlsplit(self.path)
             path = parsed.path
             qs = parse_qs(parsed.query)
@@ -1308,7 +1424,7 @@ class AtlasHandler(BaseHTTPRequestHandler):
             elif path == "/api/transcript":
                 project = (qs.get("project") or [""])[0]
                 sid = (qs.get("id") or [""])[0]
-                if not NAME_RE.match(project or "") or not NAME_RE.match(sid or ""):
+                if not is_safe_name(project) or not is_safe_name(sid):
                     self._send_json({"error": "invalid project or id"}, status=400)
                     return
                 resolved = resolve_under_store(project, sid + ".jsonl")
@@ -1336,7 +1452,7 @@ class AtlasHandler(BaseHTTPRequestHandler):
             elif path == "/api/memory/read":
                 file_param = (qs.get("file") or [""])[0]
                 project, sep, fname = file_param.partition("/")
-                if not sep or not NAME_RE.match(project) or not NAME_RE.match(fname):
+                if not sep or not is_safe_name(project) or not is_safe_name(fname):
                     self._send_json({"error": "invalid file"}, status=400)
                     return
                 resolved = resolve_under_store(project, "memory", fname)
@@ -1365,7 +1481,13 @@ class AtlasHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         try:
+            if self._reject_bad_host():
+                return
             path = urlsplit(self.path).path
+            # H1: all state-changing POSTs are CSRF-guarded (Sec-Fetch-Site / Origin).
+            if path in ("/refresh", "/api/chat", "/api/chat/stop"):
+                if self._reject_cross_origin():
+                    return
             if path == "/refresh":
                 t0 = time.time()
                 try:
@@ -1381,6 +1503,8 @@ class AtlasHandler(BaseHTTPRequestHandler):
                         {"error": "run disabled; start with --enable-run"}, status=403
                     )
                     return
+                if self._reject_non_json_ct():
+                    return
                 body, err = self._read_json_body()
                 if err:
                     self._send_json({"error": err}, status=400)
@@ -1392,6 +1516,8 @@ class AtlasHandler(BaseHTTPRequestHandler):
                     self._send_json(
                         {"error": "run disabled; start with --enable-run"}, status=403
                     )
+                    return
+                if self._reject_non_json_ct():
                     return
                 body, err = self._read_json_body()
                 if err:
@@ -1419,7 +1545,24 @@ class AtlasHandler(BaseHTTPRequestHandler):
                 pass
 
 
+def compute_allowed_hosts(bound, port):
+    """H1 allowlist: loopback names + the configured bind host, each with and
+    without the served port. Lowercased for case-insensitive Host matching."""
+    hosts = {"127.0.0.1", "localhost"}
+    if bound:
+        hosts.add(bound)
+    allowed = set()
+    for h in hosts:
+        hl = h.strip().lower()
+        if not hl:
+            continue
+        allowed.add(hl)
+        allowed.add("%s:%d" % (hl, port))
+    return frozenset(allowed)
+
+
 def start_server(bind_host, port):
+    global ALLOWED_HOSTS
     try:
         httpd = ThreadingHTTPServer((bind_host, port), AtlasHandler)
         bound = bind_host
@@ -1436,7 +1579,8 @@ def start_server(bind_host, port):
         httpd = ThreadingHTTPServer((BIND_FALLBACK, port), AtlasHandler)
         bound = BIND_FALLBACK
 
-    logger.info("serving on %s:%d", bound, port)
+    ALLOWED_HOSTS = compute_allowed_hosts(bound, port)
+    logger.info("serving on %s:%d (allowed hosts: %s)", bound, port, ", ".join(sorted(ALLOWED_HOSTS)))
     print(f"session_atlas serving on http://{bound}:{port}")
     try:
         httpd.serve_forever()
