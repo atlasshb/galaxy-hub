@@ -1,13 +1,13 @@
-# SESSION ATLAS v3 — CONSOLE (chat becomes a real Claude UI replacement)
+# STARDRIVE v3 — CONSOLE (chat becomes a real Claude UI replacement)
 
 v1 (tiles/tree/graph/fusion) and v2 (chat/projects/skills/memory) stay. v3 makes the
 Chat tab feel like a first-class Claude client: tool calls visible (historic + live),
 stoppable turns, turn cost/token stats, real markdown, a command palette, light/dark
 themes, and a visual layer worth screenshotting. Same identity and law as before:
-`session_atlas.py` stdlib-only, `index.html` self-contained, loopback default,
+`stardrive.py` stdlib-only, `index.html` self-contained, loopback default,
 read-only over `.claude`.
 
-## Backend (session_atlas.py)
+## Backend (stardrive.py)
 
 ### 1. `/api/transcript` — structured messages
 
@@ -100,7 +100,7 @@ composer Enter/Shift+Enter unchanged.
 
 ## Division of labor (build wave)
 
-Backend agent owns `session_atlas.py` ONLY. Frontend agent owns `index.html` ONLY.
+Backend agent owns `stardrive.py` ONLY. Frontend agent owns `index.html` ONLY.
 Single-author file lock as in v2. Both read this spec first.
 
 Verification note: the machine's own store at `~/.claude/projects/` contains real

@@ -1,4 +1,4 @@
-# The Claude Code UI landscape — and where Session Atlas fits
+# The Claude Code UI landscape — and where Stardrive fits
 
 Survey of the open-source ecosystem as of July 2026 (50+ projects reviewed). Curated;
 starred counts approximate at survey time.
@@ -39,12 +39,12 @@ Across all four categories, **no surveyed tool maps the session store**:
 - no fusion/merge candidates,
 - no *explanatory* graph — why sessions relate, what a cluster is about.
 
-Every viewer answers "show me my sessions." Session Atlas answers **"show me the
+Every viewer answers "show me my sessions." Stardrive answers **"show me the
 shape of my work."** That is the lane, and it is empty.
 
 Second structural differentiator: **the stack**. The ecosystem is React/Tauri/
 Electron/Node — CloudCLI alone pulls hundreds of npm packages next to your
-transcripts (which contain your prompts, code, and possibly secrets). Session Atlas
+transcripts (which contain your prompts, code, and possibly secrets). Stardrive
 is two auditable files — Python stdlib + one vanilla HTML — zero network, loopback
 by default, read-only over the store. Trust is a feature.
 
@@ -69,4 +69,4 @@ skills integration — table stakes for the client pillar, implemented in v2/v3.
   survival strategy.
 - The JSONL schema is undocumented; every viewer reverse-engineers it. Our parser
   (caps, malformed-line tolerance, sidechain rules) is that work — kept in one
-  place, `session_atlas.py`.
+  place, `stardrive.py`.

@@ -1,12 +1,12 @@
-# SESSION ATLAS v2 — WORKSPACE (full Claude Code shell)
+# STARDRIVE v2 — WORKSPACE (full Claude Code shell)
 
-v1 (tiles/tree/graph/fusion) stays. v2 turns Session Atlas into a full local **workspace
+v1 (tiles/tree/graph/fusion) stays. v2 turns Stardrive into a full local **workspace
 UI replacing the Claude Code interface**: read any session as a chat thread, PROMPT
 (new or resume) through the Claude Code CLI, browse projects/folders, skills, and memory.
-Same identity: `session_atlas.py` (stdlib only) + `index.html` (self-contained). Same
+Same identity: `stardrive.py` (stdlib only) + `index.html` (self-contained). Same
 privacy law: loopback default, read-only over `.claude` (the CLI process does the writing).
 
-## New server endpoints (session_atlas.py)
+## New server endpoints (stardrive.py)
 
 All JSON; errors as `{"error": str}` with 4xx/5xx.
 
@@ -43,5 +43,5 @@ Tab order: **Chat | Projects | Skills | Memory | Tiles | Tree | Graph | Fusion**
 - Transcript/memory endpoints stay read-only; server never writes into `.claude`.
 
 ## Division of labor (build wave)
-- Backend agent owns `session_atlas.py` ONLY. Frontend agent owns `index.html` ONLY. Nobody touches both (single-author file lock).
+- Backend agent owns `stardrive.py` ONLY. Frontend agent owns `index.html` ONLY. Nobody touches both (single-author file lock).
 - Both read this spec + RECON.md first. Frontend may stub-test against static JSON.

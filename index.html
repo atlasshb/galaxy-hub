@@ -3,19 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Session Atlas</title>
+<title>Stardrive</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Ccircle%20cx='12'%20cy='12'%20r='9.2'%20fill='none'%20stroke='%23d4a94f'%20stroke-width='1'/%3E%3Cpath%20d='M12%202.5%20L13.4%2010.6%20L21.5%2012%20L13.4%2013.4%20L12%2021.5%20L10.6%2013.4%20L2.5%2012%20L10.6%2010.6%20Z'%20fill='%23d4a94f'/%3E%3C/svg%3E">
 <script>
   /* Apply persisted theme before first paint to avoid a flash. */
   (function(){
     try{
-      var t = localStorage.getItem("atlas-theme");
+      var t = localStorage.getItem("stardrive-theme");
       if(t === "light") document.documentElement.setAttribute("data-theme", "light");
     }catch(e){}
   })();
 </script>
 <style>
-  /* ---- Session Atlas identity (BRAND-SPEC): night chart (dark, default) ---- */
+  /* ---- Stardrive identity (BRAND-SPEC): night chart (dark, default) ---- */
   :root{
     color-scheme:dark;
     --bg:#0b1020;                 /* deep space-navy ink */
@@ -621,7 +621,7 @@
   <a href="#main" class="skip-link">Skip to main content</a>
 
   <header class="header">
-    <h1 class="wordmark"><svg class="wordmark-glyph" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="1"></circle><path d="M12 2.5 L13.4 10.6 L21.5 12 L13.4 13.4 L12 21.5 L10.6 13.4 L2.5 12 L10.6 10.6 Z" fill="currentColor"></path></svg><span>SESSION ATLAS</span></h1>
+    <h1 class="wordmark"><svg class="wordmark-glyph" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="1"></circle><path d="M12 2.5 L13.4 10.6 L21.5 12 L13.4 13.4 L12 21.5 L10.6 13.4 L2.5 12 L10.6 10.6 Z" fill="currentColor"></path></svg><span>STARDRIVE</span></h1>
     <div class="stats" id="statsBar">loading…</div>
     <input type="text" id="searchInput" placeholder="search title or terms…" autocomplete="off" spellcheck="false">
     <div class="slider-group">
@@ -2354,7 +2354,7 @@
           appendSystemLine("Stop failed: " + ((j && j.error) || ("HTTP " + res.status)));
         });
       }
-      // Success: the /api/chat stream ends on its own (stdout EOF -> atlas_done),
+      // Success: the /api/chat stream ends on its own (stdout EOF -> stardrive_done),
       // which re-enables the composer.
       announce("Response stopped.");
     }).catch(function(err){ appendSystemLine("Stop failed: " + err.message); });
@@ -2362,7 +2362,7 @@
 
   function handleChatEvent(obj){
     if(!obj || !obj.type) return;
-    if(obj.type === "atlas_started"){
+    if(obj.type === "stardrive_started"){
       if(typeof obj.pid === "number") state.chat.pid = obj.pid;
       return;
     }
@@ -2398,7 +2398,7 @@
       finalizeTurn(obj);
       return;
     }
-    if(obj.type === "atlas_done"){
+    if(obj.type === "stardrive_done"){
       removeTyping();
       setComposerBusy(false);
       state.chat.pid = null;
@@ -3040,7 +3040,7 @@
     state.theme = theme;
     if(theme === "light") document.documentElement.setAttribute("data-theme", "light");
     else document.documentElement.removeAttribute("data-theme");
-    try{ localStorage.setItem("atlas-theme", theme); }catch(e){}
+    try{ localStorage.setItem("stardrive-theme", theme); }catch(e){}
     var btn = $("themeToggle");
     if(btn){ btn.textContent = theme === "light" ? "☀" : "☾"; }
     readTheme();
@@ -3057,7 +3057,7 @@
   function toggleTheme(){ applyTheme(state.theme === "light" ? "dark" : "light"); }
   function initTheme(){
     var t = "dark";
-    try{ if(localStorage.getItem("atlas-theme") === "light") t = "light"; }catch(e){}
+    try{ if(localStorage.getItem("stardrive-theme") === "light") t = "light"; }catch(e){}
     applyTheme(t);
   }
   $("themeToggle").addEventListener("click", toggleTheme);
@@ -3336,7 +3336,7 @@
   // Test-only hook (never present for real users): exposes graph geometry +
   // selection helpers so Playwright can drive real canvas interactions.
   if(location.search.indexOf("__test=1") >= 0){
-    window.__atlas = {
+    window.__stardrive = {
       screenPosOf: function(i){ return Graph.screenPosOf(i); },
       debugScores: function(q){ return Graph.debugScores(q); },
       focusSize: function(){ return Graph.focusSize(); },

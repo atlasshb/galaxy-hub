@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SESSION ATLAS - indexer + HTTP server over the Claude Code session store.
+STARDRIVE - indexer + HTTP server over the Claude Code session store.
 
 Read-only over ~/.claude/projects/<projdir>/*.jsonl (top-level files only,
 never recurses into subagents/workflows subdirectories). Builds data.json
@@ -36,7 +36,7 @@ STORE_DIR = os.path.join(CLAUDE_HOME, "projects")
 SKILLS_DIR = os.path.join(CLAUDE_HOME, "skills")
 COMMANDS_DIR = os.path.join(CLAUDE_HOME, "commands")
 DATA_JSON = os.path.join(APP_DIR, "data.json")
-LOG_FILE = os.path.join(APP_DIR, "atlas_sessions.log")
+LOG_FILE = os.path.join(APP_DIR, "stardrive.log")
 TITLES_OVERRIDE = os.path.join(APP_DIR, "titles_override.json")
 INDEX_HTML = os.path.join(APP_DIR, "index.html")
 
@@ -120,7 +120,7 @@ STOPWORDS = frozenset(
 # Logging
 # ---------------------------------------------------------------------------
 
-logger = logging.getLogger("session_atlas")
+logger = logging.getLogger("stardrive")
 
 
 def configure_logging():
@@ -825,7 +825,7 @@ def resolve_claude_binary():
 # (start_new_session=True), so signalling the GROUP reaps the node process AND
 # every child it spawned — plain proc.terminate() would kill only the leader and
 # orphan grandchildren that keep the SSE stdout pipe open (so the stream never
-# EOFs / atlas_done never fires). On Windows we keep proc.terminate()/kill().
+# EOFs / stardrive_done never fires). On Windows we keep proc.terminate()/kill().
 # Shared by every kill path: /api/chat/stop, the --run-timeout timer, the
 # client-disconnect cleanup, and the finally-block terminate.
 # ---------------------------------------------------------------------------
@@ -888,7 +888,7 @@ def stop_chat_proc(proc):
     still alive after 3s, group-kill — all in a daemon thread so the HTTP
     response returns at once. Only ever called with a proc pulled from
     ACTIVE_PROCS — we never signal a pid that isn't in the registry. The
-    /api/chat streaming loop then finishes naturally (stdout EOF -> atlas_done)."""
+    /api/chat streaming loop then finishes naturally (stdout EOF -> stardrive_done)."""
     threading.Thread(target=terminate_proc_tree, args=(proc, 3), daemon=True).start()
 
 
@@ -1152,8 +1152,8 @@ def data_json_is_fresh():
 # ---------------------------------------------------------------------------
 
 
-class AtlasHandler(BaseHTTPRequestHandler):
-    server_version = "SessionAtlas/2.0"
+class StardriveHandler(BaseHTTPRequestHandler):
+    server_version = "Stardrive/3.0"
 
     def log_message(self, fmt, *args):
         logger.info("%s - %s", self.address_string(), fmt % args)
@@ -1365,7 +1365,7 @@ class AtlasHandler(BaseHTTPRequestHandler):
             # v3: announce the child pid as the very first SSE event so the
             # client can target POST /api/chat/stop.
             try:
-                self._sse_send('data: {"type":"atlas_started","pid":%d}\n\n' % proc.pid)
+                self._sse_send('data: {"type":"stardrive_started","pid":%d}\n\n' % proc.pid)
             except OSError:
                 client_gone = True
                 logger.info("client disconnected from /api/chat pid=%s", proc.pid)
@@ -1391,7 +1391,7 @@ class AtlasHandler(BaseHTTPRequestHandler):
             if not client_gone:
                 try:
                     self._sse_send(
-                        'data: {"type":"atlas_done","code":%s}\n\n'
+                        'data: {"type":"stardrive_done","code":%s}\n\n'
                         % (json.dumps(code) if code is not None else "null")
                     )
                     self._sse_end()
@@ -1564,7 +1564,7 @@ def compute_allowed_hosts(bound, port):
 def start_server(bind_host, port):
     global ALLOWED_HOSTS
     try:
-        httpd = ThreadingHTTPServer((bind_host, port), AtlasHandler)
+        httpd = ThreadingHTTPServer((bind_host, port), StardriveHandler)
         bound = bind_host
     except OSError as e:
         if bind_host == BIND_FALLBACK:
@@ -1576,12 +1576,12 @@ def start_server(bind_host, port):
             e,
             BIND_FALLBACK,
         )
-        httpd = ThreadingHTTPServer((BIND_FALLBACK, port), AtlasHandler)
+        httpd = ThreadingHTTPServer((BIND_FALLBACK, port), StardriveHandler)
         bound = BIND_FALLBACK
 
     ALLOWED_HOSTS = compute_allowed_hosts(bound, port)
     logger.info("serving on %s:%d (allowed hosts: %s)", bound, port, ", ".join(sorted(ALLOWED_HOSTS)))
-    print(f"session_atlas serving on http://{bound}:{port}")
+    print(f"stardrive serving on http://{bound}:{port}")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
@@ -1613,7 +1613,7 @@ def load_projects_cache_from_disk():
 
 def main():
     global STORE_DIR, ENABLE_RUN, RUN_TIMEOUT
-    parser = argparse.ArgumentParser(description="Session Atlas indexer + server")
+    parser = argparse.ArgumentParser(description="Stardrive indexer + server")
     parser.add_argument("--index-only", action="store_true", help="index once and exit")
     parser.add_argument("--serve", action="store_true", help="index if stale, then serve")
     parser.add_argument("--root", default=STORE_DIR, help="Claude Code session store (default: ~/.claude/projects)")
@@ -1638,7 +1638,7 @@ def main():
 
     configure_logging()
     logger.info(
-        "session_atlas start (store=%s, enable_run=%s, run_timeout=%s)",
+        "stardrive start (store=%s, enable_run=%s, run_timeout=%s)",
         STORE_DIR,
         ENABLE_RUN,
         RUN_TIMEOUT,

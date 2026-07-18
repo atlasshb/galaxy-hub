@@ -16,7 +16,7 @@ target and the reference platform.
 ```bash
 git clone https://github.com/atlasshb/session-atlas
 cd session-atlas
-python3 session_atlas.py          # indexes your store, then serves
+python3 stardrive.py          # indexes your store, then serves
 # open http://127.0.0.1:8877
 ```
 
@@ -32,7 +32,7 @@ On the remote desktop, keep it running (pick one):
 
 ```bash
 # simplest: a detached tmux session
-tmux new -d -s meridian 'cd ~/session-atlas && python3 session_atlas.py'
+tmux new -d -s meridian 'cd ~/session-atlas && python3 stardrive.py'
 ```
 
 or as a **systemd user service** (survives logout, restarts on boot):
@@ -45,7 +45,7 @@ After=network.target
 
 [Service]
 WorkingDirectory=%h/session-atlas
-ExecStart=/usr/bin/python3 %h/session-atlas/session_atlas.py --port 8877
+ExecStart=/usr/bin/python3 %h/session-atlas/stardrive.py --port 8877
 Restart=on-failure
 
 [Install]
@@ -74,7 +74,7 @@ remote desktop, and the port is never open to anyone else.
 on only on a machine you trust, and only together with the loopback+SSH pattern above:
 
 ```bash
-python3 session_atlas.py --enable-run
+python3 stardrive.py --enable-run
 ```
 
 **Never** combine `--enable-run` with a non-loopback `--bind` — that hands agent

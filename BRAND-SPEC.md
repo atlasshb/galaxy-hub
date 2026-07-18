@@ -1,6 +1,6 @@
-# SESSION ATLAS — brand & identity brief
+# STARDRIVE — brand & identity brief
 
-Session Atlas is a public open-source project. Its identity should be **ownable and
+Stardrive is a public open-source project. Its identity should be **ownable and
 reel-worthy**: a cartographer's instrument for your AI work history — not a GitHub
 clone, not a Claude imitation. Metaphor: **star charts / atlases** — your sessions
 are a territory; Atlas maps it.
@@ -28,7 +28,7 @@ Light ("parchment map"):
 
 ## Marks & motifs
 
-- **Wordmark**: `SESSION ATLAS` in caps with letter-spacing, preceded by a small
+- **Wordmark**: `STARDRIVE` in caps with letter-spacing, preceded by a small
   compass-rose glyph (inline SVG, gold, ~16px; 4-point star in a thin circle is
   enough). The glyph alone is the favicon (inline SVG data URI).
 - **Graph = star chart**: nodes get a soft glow (shadowBlur in the node's cluster

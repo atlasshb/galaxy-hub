@@ -1,4 +1,4 @@
-# SESSION ATLAS v3.1 — GRAPH THAT TEACHES
+# STARDRIVE v3.1 — GRAPH THAT TEACHES
 
 > "The goal isn't a graph that wows you with how complex your codebase is — it's a
 > graph that quietly teaches you how every piece fits together." — Understand-Anything
@@ -8,7 +8,7 @@ what this session is about, where it fits, why it connects to its neighbors — 
 question a node raises should be one click from asking Claude itself. Additive wave on
 top of v3 (CONSOLE-SPEC.md); same files, same single-author locks, same guardrails.
 
-## Backend (session_atlas.py) — one addition
+## Backend (stardrive.py) — one addition
 
 `data.json` sessions gain `"tw"`: the session's top-25 TF-IDF terms as
 `[["term", 0.312], ...]` pairs (weight = the L2-normalized vector value, 3 decimals,

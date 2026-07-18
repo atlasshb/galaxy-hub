@@ -1,8 +1,8 @@
-# Session Atlas
+# Stardrive
 
 **A full local workspace for Claude Code — the UI it should have shipped with.**
 
-Claude Code stores every conversation as a `.jsonl` transcript, but the UI only shows you a flat list. Session Atlas is a zero-dependency local workspace that reads your session store (read-only) and gives you:
+Claude Code stores every conversation as a `.jsonl` transcript, but the UI only shows you a flat list. Stardrive is a zero-dependency local workspace that reads your session store (read-only) and gives you:
 
 - 💬 **Chat** — read any session as a proper thread, then **prompt right there**: new sessions or resume existing ones, streamed live through the Claude Code CLI, with `/` skill autocomplete
 - 📁 **Projects** — browse every project folder Claude Code knows, jump into a session in any of them
@@ -17,7 +17,7 @@ Everything runs locally. No cloud, no telemetry, no dependencies beyond Python 3
 ## Quickstart
 
 ```bash
-python session_atlas.py            # index your store, then serve
+python stardrive.py            # index your store, then serve
 # open http://127.0.0.1:8877
 ```
 
@@ -44,7 +44,7 @@ The **Refresh** button in the UI re-indexes on demand. `data.json` (your indexed
 
 ## Privacy
 
-Your transcripts contain your prompts, code, and possibly secrets. Session Atlas:
+Your transcripts contain your prompts, code, and possibly secrets. Stardrive:
 - opens the store **read-only** and never modifies it,
 - binds to **loopback by default** — bind a LAN/tailnet interface only if you understand who can reach it,
 - makes **zero external requests** (UI and server).
