@@ -47,6 +47,9 @@ MAX_LINES = 4000
 MAX_BYTES = 5 * 1024 * 1024
 MAX_DOC_MSGS = 20
 MAX_DOC_CHARS = 6000
+MAX_SEARCH_TERMS = 5000
+MAX_SEARCH_POSTINGS = 200
+MAX_SEARCH_RESULTS = 100
 TITLE_MAX_LEN = 70
 STALE_SECONDS = 6 * 3600
 LOG_TRUNCATE_BYTES = 1024 * 1024
@@ -168,6 +171,19 @@ def tokenize(text):
     ]
 
 
+def build_search_index(search_docs):
+    """Build a bounded term -> session-index inverted index."""
+    index = defaultdict(set)
+    for session_index, text in search_docs:
+        for term in set(tokenize(text)):
+            if len(index) >= MAX_SEARCH_TERMS and term not in index:
+                continue
+            postings = index[term]
+            if len(postings) < MAX_SEARCH_POSTINGS:
+                postings.add(session_index)
+    return {term: sorted(postings) for term, postings in index.items()}
+
+
 # ---------------------------------------------------------------------------
 # Scan: one jsonl session file -> parsed record
 # ---------------------------------------------------------------------------
@@ -257,6 +273,7 @@ def parse_session_file(path, session_id, override_title=None):
         "kb": kb,
         "mtime": mtime,
         "doc": doc,
+        "search_text": doc_body,
         "bad_lines": bad_lines,
     }
 
@@ -753,6 +770,7 @@ def run_index():
 
     sessions = []
     docs = []
+    search_docs = []
     n_files = 0
 
     if os.path.isdir(STORE_DIR):
@@ -794,6 +812,7 @@ def run_index():
                     }
                 )
                 docs.append(parsed["doc"])
+                search_docs.append((len(sessions) - 1, parsed["search_text"]))
     else:
         logger.warning("store dir not found: %s", STORE_DIR)
 
@@ -826,6 +845,11 @@ def run_index():
         "sessions": ordered_sessions,
         "clusters": clusters,
         "edges": edges,
+        "searchIndex": build_search_index(search_docs),
+        "searchSnippets": {
+            str(idx): re.sub(r"\s+", " ", text)[:240]
+            for idx, text in search_docs
+        },
     }
 
     tmp_path = DATA_JSON + ".tmp"
@@ -860,6 +884,31 @@ def data_json_is_fresh():
         return False
     age = time.time() - os.path.getmtime(DATA_JSON)
     return age < STALE_SECONDS
+
+
+def search_data(query):
+    """Search the persisted inverted index and return matching sessions."""
+    query_terms = list(dict.fromkeys(tokenize(query)))
+    if not query_terms or not os.path.isfile(DATA_JSON):
+        return {"query": query, "matches": []}
+    with open(DATA_JSON, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    index = data.get("searchIndex") or {}
+    snippets = data.get("searchSnippets") or {}
+    sessions = data.get("sessions") or []
+    candidates = None
+    for term in query_terms:
+        ids = set(index.get(term, []))
+        candidates = ids if candidates is None else candidates & ids
+    results = []
+    for idx in sorted(candidates or []):
+        if 0 <= idx < len(sessions):
+            session = sessions[idx]
+            results.append({"i": session["i"], "id": session["id"], "title": session["title"],
+                            "snippet": snippets.get(str(idx), "")})
+            if len(results) >= MAX_SEARCH_RESULTS:
+                break
+    return {"query": query, "matches": results}
 
 
 # ---------------------------------------------------------------------------
@@ -1086,6 +1135,17 @@ class AtlasHandler(BaseHTTPRequestHandler):
                     self._send_file(DATA_JSON, "application/json; charset=utf-8")
                 else:
                     self._send_json({"error": "no data.json yet"}, status=404)
+
+            elif path == "/search":
+                query = (qs.get("q") or [""])[0].strip()
+                if len(query) > 200:
+                    self._send_json({"error": "query too long"}, status=400)
+                    return
+                try:
+                    self._send_json(search_data(query))
+                except (OSError, ValueError, json.JSONDecodeError) as e:
+                    logger.exception("search failed")
+                    self._send_json({"error": str(e)}, status=500)
 
             elif path == "/api/projects":
                 self._send_json(get_projects_cache())
