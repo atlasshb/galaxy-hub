@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Session Atlas</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Ccircle%20cx='12'%20cy='12'%20r='9.2'%20fill='none'%20stroke='%23d4a94f'%20stroke-width='1'/%3E%3Cpath%20d='M12%202.5%20L13.4%2010.6%20L21.5%2012%20L13.4%2013.4%20L12%2021.5%20L10.6%2013.4%20L2.5%2012%20L10.6%2010.6%20Z'%20fill='%23d4a94f'/%3E%3C/svg%3E">
 <script>
   /* Apply persisted theme before first paint to avoid a flash. */
   (function(){
@@ -14,49 +15,55 @@
   })();
 </script>
 <style>
+  /* ---- Session Atlas identity (BRAND-SPEC): night chart (dark, default) ---- */
   :root{
     color-scheme:dark;
-    --bg:#0d1117;
-    --panel:#161b22;
-    --panel-2:#1c2333;
-    --border:#30363d;
-    --text:#c9d1d9;
-    --accent:#58a6ff;
-    --accent-rgb:88,166,255;
-    --muted:#8b949e;
-    --on-accent:#0d1117;
-    --on-accent-dim:rgba(13,17,23,.62);
-    --on-accent-code:rgba(13,17,23,.22);
-    --hud-bg:rgba(22,27,34,.85);
-    --overlay-bg:rgba(13,17,23,.86);
-    --error:#f85149;
-    --error-bg:#5a1d1d;
-    --error-tint:rgba(248,81,73,.12);
-    --ok:#3fb950;
-    --header-bg:rgba(22,27,34,.72);
-    --shadow:rgba(0,0,0,.5);
+    --bg:#0b1020;                 /* deep space-navy ink */
+    --panel:#121831;              /* chart panel */
+    --panel-2:#1a2244;            /* raised panel / hover */
+    --border:#26304f;             /* desaturated indigo */
+    --text:#dde3f0;               /* starlight off-white */
+    --muted:#8a93ad;
+    --accent:#d4a94f;             /* atlas gold — primary actions, wordmark, focus */
+    --accent-rgb:212,169,79;
+    --accent2:#4fd4c5;            /* meridian teal — links, edges, streaming */
+    --accent2-rgb:79,212,197;
+    --on-accent:#0b1020;          /* ink on gold */
+    --on-accent-dim:rgba(11,16,32,.62);
+    --on-accent-code:rgba(11,16,32,.20);
+    --hud-bg:rgba(18,24,49,.85);
+    --overlay-bg:rgba(6,9,20,.82);
+    --error:#f0736b;
+    --error-bg:#4a1c1f;
+    --error-tint:rgba(240,115,107,.13);
+    --ok:#5ec98a;
+    --header-bg:rgba(14,19,40,.74);
+    --shadow:rgba(0,0,0,.55);
   }
+  /* ---- parchment map (light) ---- */
   :root[data-theme="light"]{
     color-scheme:light;
-    --bg:#ffffff;
-    --panel:#f6f8fa;
-    --panel-2:#eaeef2;
-    --border:#d0d7de;
-    --text:#1f2328;
-    --accent:#0969da;
-    --accent-rgb:9,105,218;
-    --muted:#656d76;
-    --on-accent:#ffffff;
-    --on-accent-dim:rgba(255,255,255,.82);
-    --on-accent-code:rgba(255,255,255,.24);
-    --hud-bg:rgba(246,248,250,.9);
-    --overlay-bg:rgba(31,35,40,.42);
-    --error:#cf222e;
-    --error-bg:#ffebe9;
-    --error-tint:rgba(207,34,46,.10);
-    --ok:#1a7f37;
-    --header-bg:rgba(246,248,250,.82);
-    --shadow:rgba(140,149,159,.35);
+    --bg:#f6f1e7;                 /* warm paper */
+    --panel:#fdfaf3;
+    --panel-2:#efe8d8;
+    --border:#d8cfba;
+    --text:#2b2820;               /* ink */
+    --muted:#726b57;
+    --accent:#a07c28;             /* gold darkened for contrast */
+    --accent-rgb:160,124,40;
+    --accent2:#1f8f83;            /* teal darkened */
+    --accent2-rgb:31,143,131;
+    --on-accent:#fdfaf3;
+    --on-accent-dim:rgba(253,250,243,.82);
+    --on-accent-code:rgba(253,250,243,.28);
+    --hud-bg:rgba(253,250,243,.9);
+    --overlay-bg:rgba(43,40,32,.4);
+    --error:#b23a30;
+    --error-bg:#f6e2de;
+    --error-tint:rgba(178,58,48,.10);
+    --ok:#3d7a45;
+    --header-bg:rgba(246,241,231,.85);
+    --shadow:rgba(120,110,88,.35);
   }
   html{scrollbar-color:var(--border) var(--bg);scrollbar-width:thin;}
   *{box-sizing:border-box;}
@@ -76,7 +83,8 @@
     backdrop-filter:blur(10px) saturate(1.3);-webkit-backdrop-filter:blur(10px) saturate(1.3);
     position:relative;z-index:10;
   }
-  .wordmark{font-weight:800;letter-spacing:1.5px;color:var(--accent);font-size:15px;white-space:nowrap;}
+  .wordmark{font-weight:800;letter-spacing:1.5px;color:var(--accent);font-size:15px;white-space:nowrap;display:inline-flex;align-items:center;gap:8px;}
+  .wordmark-glyph{flex:0 0 auto;display:block;}
   .icon-btn{
     background:var(--bg);border:1px solid var(--border);color:var(--text);
     border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;white-space:nowrap;
@@ -144,7 +152,10 @@
   .tree-session:hover{background:var(--panel);color:var(--accent);}
 
   /* Graph */
-  #viewGraph{position:relative;}
+  /* NOTE: keep position:absolute (matching .view) so the view fills #main and
+     is a containing block for the canvas/legend/HUD. A position:relative here
+     collapses the view to 0 height (all children are absolute), clipping them. */
+  #viewGraph{position:absolute;inset:0;}
   #graphCanvas{position:absolute;inset:0;width:100%;height:100%;cursor:grab;display:block;}
   #graphCanvas.dragging{cursor:grabbing;}
   .graph-hud{
@@ -152,6 +163,41 @@
     border:1px solid var(--border);padding:6px 10px;border-radius:6px;font-size:11px;color:var(--muted);
     pointer-events:none;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
   }
+  .graph-hint{
+    position:absolute;left:12px;bottom:40px;color:var(--muted);font-size:11px;
+    padding:2px 4px;pointer-events:none;opacity:.85;letter-spacing:.2px;
+  }
+  /* cluster legend — styled as a map legend */
+  .graph-legend{
+    position:absolute;top:12px;right:12px;width:230px;max-height:calc(100% - 24px);
+    background:var(--hud-bg);border:1px solid var(--border);border-radius:8px;
+    display:flex;flex-direction:column;overflow:hidden;z-index:5;
+    box-shadow:0 6px 24px var(--shadow);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);
+  }
+  .graph-legend-head{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:8px 10px 7px;border-top:2px solid var(--accent);
+  }
+  .graph-legend-title{
+    font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;
+    letter-spacing:1.2px;
+  }
+  .graph-legend-toggle{
+    background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:0 4px;
+  }
+  .graph-legend-toggle:hover{color:var(--accent);}
+  .graph-legend.collapsed .graph-legend-body{display:none;}
+  .graph-legend-body{overflow-y:auto;padding:4px;}
+  .legend-row{
+    display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:6px;cursor:pointer;font-size:12px;
+  }
+  .legend-row:hover{background:var(--panel-2);}
+  .legend-row.active{background:var(--panel-2);box-shadow:inset 2px 0 0 0 var(--accent);}
+  .legend-row .cluster-dot{width:11px;height:11px;box-shadow:0 0 6px currentColor;}
+  .legend-label{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);}
+  .legend-size{flex:0 0 auto;color:var(--muted);font-size:11px;}
+  .legend-more{padding:6px 8px;font-size:11px;color:var(--muted);cursor:pointer;border-radius:6px;}
+  .legend-more:hover{color:var(--accent);background:var(--panel-2);}
 
   /* Fusion */
   .fusion-controls{
@@ -202,7 +248,31 @@
     display:flex;gap:6px;align-items:center;background:var(--bg);border:1px solid var(--border);
     border-radius:6px;padding:6px 8px;margin-top:4px;
   }
-  .resume-box code{flex:1;overflow-x:auto;white-space:nowrap;font-family:Consolas,"Courier New",monospace;font-size:11px;}
+  .resume-box code{flex:1;overflow-x:auto;white-space:nowrap;font-family:ui-monospace,"Cascadia Code","SF Mono",Consolas,monospace;font-size:11px;}
+
+  /* Node story panel (graph clicks) */
+  .story-lead{font-size:13px;line-height:1.6;margin-bottom:14px;color:var(--text);}
+  .story-lead strong{color:var(--accent);}
+  .story-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+  .story-btn{
+    background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+    border-radius:6px;padding:6px 11px;cursor:pointer;font-size:12px;
+  }
+  .story-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .story-btn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:600;}
+  .story-btn.primary:hover{opacity:.9;color:var(--on-accent);}
+  .story-conn{
+    padding:7px 4px;border-bottom:1px solid var(--border);cursor:pointer;
+  }
+  .story-conn:hover{background:var(--panel-2);}
+  .story-conn-top{display:flex;justify-content:space-between;gap:8px;font-size:12px;align-items:baseline;}
+  .story-conn-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);}
+  .story-conn:hover .story-conn-title{color:var(--accent);}
+  .story-conn-w{flex:0 0 auto;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;}
+  .story-conn-bar{height:3px;border-radius:2px;background:var(--border);margin:5px 0 4px;overflow:hidden;}
+  .story-conn-bar>span{display:block;height:100%;background:var(--accent2);}
+  .story-conn-terms{font-size:11px;color:var(--muted);}
+  .story-conn-terms b{color:var(--accent2);font-weight:600;}
 
   /* Error overlay */
   #errorOverlay{
@@ -332,7 +402,7 @@
   .tool-chip-ic{flex:0 0 auto;color:var(--muted);}
   .tool-chip-name{flex:0 0 auto;font-weight:700;color:var(--text);}
   .tool-chip-in{
-    flex:1 1 auto;min-width:0;color:var(--muted);font-family:Consolas,"Courier New",monospace;
+    flex:1 1 auto;min-width:0;color:var(--muted);font-family:ui-monospace,"Cascadia Code","SF Mono",Consolas,monospace;
     font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
   .tool-chip-st{flex:0 0 auto;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;}
@@ -340,7 +410,7 @@
   .tool-chip.expanded .tool-chip-caret{transform:rotate(90deg);}
   .tool-chip-body{
     display:none;border-top:1px solid var(--border);padding:8px 10px;background:var(--bg);
-    font-family:Consolas,"Courier New",monospace;font-size:11px;line-height:1.45;
+    font-family:ui-monospace,"Cascadia Code","SF Mono",Consolas,monospace;font-size:11px;line-height:1.45;
     white-space:pre-wrap;word-break:break-word;color:var(--text);max-height:300px;overflow:auto;
   }
   .tool-chip.expanded .tool-chip-body{display:block;}
@@ -349,7 +419,7 @@
   .tool-chip.error .tool-chip-st{color:var(--error);}
   .tool-chip.error .tool-chip-body{border-top-color:var(--error);}
   .tool-spinner{
-    width:11px;height:11px;border:2px solid var(--border);border-top-color:var(--accent);
+    width:11px;height:11px;border:2px solid var(--border);border-top-color:var(--accent2);
     border-radius:50%;animation:spin .7s linear infinite;display:inline-block;
   }
   @keyframes spin{to{transform:rotate(360deg);}}
@@ -369,7 +439,7 @@
   .turn-stats{font-size:11px;color:var(--muted);padding:1px 2px;display:flex;align-items:center;gap:6px;}
   .turn-stats.error{color:var(--error);}
   .typing{display:inline-flex;gap:5px;align-items:center;padding:11px 14px;background:var(--panel);border:1px solid var(--border);border-radius:12px;border-bottom-left-radius:4px;}
-  .typing span{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:typingDot 1.2s infinite ease-in-out;}
+  .typing span{width:6px;height:6px;border-radius:50%;background:var(--accent2);animation:typingDot 1.2s infinite ease-in-out;}
   .typing span:nth-child(2){animation-delay:.18s;}
   .typing span:nth-child(3){animation-delay:.36s;}
   @keyframes typingDot{0%,60%,100%{opacity:.3;transform:translateY(0);}30%{opacity:1;transform:translateY(-3px);}}
@@ -385,9 +455,9 @@
   .md-list li{margin:2px 0;}
   .md-quote{margin:6px 0;padding:2px 12px;border-left:3px solid var(--border);color:var(--muted);}
   .md-rendered hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
-  .md-rendered a{color:var(--accent);text-decoration:underline;}
+  .md-rendered a{color:var(--accent2);text-decoration:underline;}
   .md-rendered code{
-    font-family:Consolas,"Courier New",monospace;background:rgba(110,118,129,.25);
+    font-family:ui-monospace,"Cascadia Code","SF Mono",Consolas,monospace;background:rgba(110,118,129,.25);
     padding:1px 4px;border-radius:4px;font-size:12px;
   }
   .msg-row.user .md-rendered code{background:var(--on-accent-code);}
@@ -397,7 +467,7 @@
     padding:4px 8px 4px 12px;background:var(--panel-2);border-bottom:1px solid var(--border);
     font-size:11px;color:var(--muted);
   }
-  .md-code-lang{font-family:Consolas,"Courier New",monospace;letter-spacing:.3px;}
+  .md-code-lang{font-family:ui-monospace,"Cascadia Code","SF Mono",Consolas,monospace;letter-spacing:.3px;}
   .md-copy{
     opacity:0;transition:opacity .12s;background:var(--panel);border:1px solid var(--border);
     color:var(--text);border-radius:5px;padding:2px 9px;font-size:11px;cursor:pointer;font-family:inherit;
@@ -425,7 +495,7 @@
   .skills-list{flex:1 1 auto;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px;}
   .skill-row{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 14px;cursor:pointer;}
   .skill-row:hover{border-color:var(--accent);}
-  .skill-name{font-weight:700;color:var(--accent);font-size:13px;margin-bottom:3px;}
+  .skill-name{font-weight:700;color:var(--accent2);font-size:13px;margin-bottom:3px;}
   .skill-desc{font-size:12px;color:var(--muted);}
 
   /* ---------- Memory ---------- */
@@ -433,8 +503,8 @@
   .memory-list{width:260px;flex:0 0 260px;border-right:1px solid var(--border);overflow-y:auto;padding:8px;}
   .memory-row{padding:8px 10px;border-radius:6px;cursor:pointer;margin-bottom:2px;}
   .memory-row:hover{background:var(--panel);}
-  .memory-row.active{background:var(--accent);color:#0d1117;}
-  .memory-row.active .memory-desc{color:rgba(13,17,23,.7);}
+  .memory-row.active{background:var(--accent);color:var(--on-accent);}
+  .memory-row.active .memory-desc{color:var(--on-accent-dim);}
   .memory-name{font-size:12px;font-weight:600;margin-bottom:2px;}
   .memory-desc{font-size:11px;color:var(--muted);}
   .memory-content{flex:1 1 auto;overflow-y:auto;padding:18px;font-size:13px;line-height:1.6;}
@@ -442,7 +512,7 @@
     background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;overflow-x:auto;margin:8px 0;
   }
   .memory-content code{
-    font-family:Consolas,"Courier New",monospace;background:rgba(110,118,129,.25);
+    font-family:ui-monospace,"Cascadia Code","SF Mono",Consolas,monospace;background:rgba(110,118,129,.25);
     padding:1px 4px;border-radius:4px;font-size:12px;
   }
   .memory-content pre.md-fence code{background:none;padding:0;}
@@ -507,7 +577,7 @@
 <body>
 
   <div class="header">
-    <div class="wordmark">SESSION ATLAS</div>
+    <div class="wordmark"><svg class="wordmark-glyph" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="1"></circle><path d="M12 2.5 L13.4 10.6 L21.5 12 L13.4 13.4 L12 21.5 L10.6 13.4 L2.5 12 L10.6 10.6 Z" fill="currentColor"></path></svg><span>SESSION ATLAS</span></div>
     <div class="stats" id="statsBar">loading…</div>
     <input type="text" id="searchInput" placeholder="search title or terms…" autocomplete="off" spellcheck="false">
     <div class="slider-group">
@@ -592,7 +662,15 @@
 
     <div class="view" id="viewGraph">
       <canvas id="graphCanvas"></canvas>
+      <div class="graph-legend" id="graphLegend">
+        <div class="graph-legend-head">
+          <span class="graph-legend-title">Legend · regions</span>
+          <button class="graph-legend-toggle" id="legendToggle" title="Collapse legend" aria-label="Collapse legend">–</button>
+        </div>
+        <div class="graph-legend-body" id="legendBody"></div>
+      </div>
       <div class="graph-hud" id="graphHud"></div>
+      <div class="graph-hint" id="graphHint">click: focus · double-click: expand · esc: clear · /: search</div>
     </div>
 
     <div class="view" id="viewFusion">
@@ -607,7 +685,7 @@
 
     <div class="detail-panel" id="detailPanel">
       <div class="detail-header">
-        <strong>Session detail</strong>
+        <strong id="detailTitle">Session detail</strong>
         <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
           <button class="copy-btn" id="openInChatBtn">Open in Chat</button>
           <button class="close-btn" id="detailClose" title="Close">✕</button>
@@ -635,20 +713,24 @@
 (function(){
   "use strict";
 
+  // Jewel-tone cluster palette — reads as constellations over navy, holds on parchment.
   var PALETTE = [
-    "#58a6ff","#3fb950","#f778ba","#d29922","#a371f7","#56d4dd",
-    "#ff7b72","#7ee787","#e3b341","#79c0ff","#ffa657","#bc8cff"
+    "#5b8dee","#34c98a","#b57edc","#e0678a","#d9a441","#4fd4c5",
+    "#ef7a5d","#86c440","#c9b03a","#6fb4f0","#eaa94e","#9a7ff0"
   ];
 
   // Theme-derived canvas colors (the graph draws on a raw canvas, so it can't
   // inherit CSS variables — we read them once per theme change instead).
-  var THEME = { bg:"#0d1117", text:"#c9d1d9", edgeRgb:"88,166,255" };
+  // edges use the meridian-teal secondary; gridRgb is a faint gold for the
+  // star-chart backdrop; textRgb powers dotted-grid alpha.
+  var THEME = { bg:"#0b1020", text:"#dde3f0", edgeRgb:"79,212,197", gridRgb:"212,169,79", mutedRgb:"138,147,173" };
   function readTheme(){
     try{
       var cs = getComputedStyle(document.documentElement);
       THEME.bg = (cs.getPropertyValue("--bg") || "").trim() || THEME.bg;
       THEME.text = (cs.getPropertyValue("--text") || "").trim() || THEME.text;
-      THEME.edgeRgb = (cs.getPropertyValue("--accent-rgb") || "").trim() || THEME.edgeRgb;
+      THEME.edgeRgb = (cs.getPropertyValue("--accent2-rgb") || "").trim() || THEME.edgeRgb;
+      THEME.gridRgb = (cs.getPropertyValue("--accent-rgb") || "").trim() || THEME.gridRgb;
     }catch(e){}
   }
 
@@ -687,7 +769,8 @@
       skillPopupMatches: []
     },
     theme: "dark",
-    palette: { open: false, index: 0, items: [] }
+    palette: { open: false, index: 0, items: [] },
+    graph: { legendExpanded: false, isolatedCluster: null }
   };
 
   // ---------- utils ----------
@@ -902,12 +985,16 @@
     var active = false;
     var selectedNode = null;
     var FRICTION = 0.85;
+    var adjacency = new Map();     // i -> Set(neighbor i) over visible springs
+    var focusSet = null;           // Set of focused node indices, or null
+    var isolatedCluster = null;    // cluster id isolated via legend, or null
 
     function init(){
       canvas = $("graphCanvas");
       ctx = canvas.getContext("2d");
       canvas.addEventListener("wheel", onWheel, {passive:false});
       canvas.addEventListener("mousedown", onMouseDown);
+      canvas.addEventListener("dblclick", onDblClick);
       window.addEventListener("mousemove", onMouseMove);
       window.addEventListener("mouseup", onMouseUp);
       window.addEventListener("resize", resize);
@@ -938,6 +1025,7 @@
         var r = 2 + 2 * Math.log(1 + (s.msgs || 0));
         return {
           i: s.i, id: s.id, title: s.title, cluster: s.cluster, terms: s.terms || [],
+          tw: Array.isArray(s.tw) ? s.tw : [],
           r: r, color: color,
           x: prev ? prev.x : (w/2 + (Math.random()-0.5) * w * 0.7),
           y: prev ? prev.y : (h/2 + (Math.random()-0.5) * h * 0.7),
@@ -948,6 +1036,7 @@
       });
       nodeByIndex = new Map();
       nodes.forEach(function(n){ nodeByIndex.set(n.i, n); });
+      focusSet = null; isolatedCluster = null;
       rebuildSprings();
       warmupTicks = 300;
     }
@@ -955,7 +1044,65 @@
     function rebuildSprings(){
       springs = edgesAll.filter(function(e){ return e[2] >= state.edgeThreshold; });
       springPairs = new Set(springs.map(function(e){ return e[0] + "_" + e[1]; }));
+      buildAdjacency();
       warmupTicks = Math.max(warmupTicks, 150);
+    }
+
+    function buildAdjacency(){
+      adjacency = new Map();
+      nodes.forEach(function(n){ adjacency.set(n.i, new Set()); });
+      springs.forEach(function(e){
+        if(adjacency.has(e[0])) adjacency.get(e[0]).add(e[1]);
+        if(adjacency.has(e[1])) adjacency.get(e[1]).add(e[0]);
+      });
+    }
+
+    function neighborsOf(i){
+      var s = adjacency.get(i);
+      return s ? Array.from(s) : [];
+    }
+
+    // ---- focus mode ----
+    function focusNode(i){
+      isolatedCluster = null;
+      var set = new Set();
+      set.add(i);
+      neighborsOf(i).forEach(function(nb){ set.add(nb); });
+      focusSet = set;
+      selectedNode = nodeByIndex.get(i) || null;
+      if(active) draw();
+    }
+    function expandFocus(){
+      if(!focusSet){ return; }
+      var add = [];
+      focusSet.forEach(function(i){ neighborsOf(i).forEach(function(nb){ add.push(nb); }); });
+      add.forEach(function(nb){ focusSet.add(nb); });
+      if(active) draw();
+    }
+    function clearFocus(){
+      focusSet = null;
+      if(active) draw();
+    }
+    function focusActive(){ return !!focusSet; }
+
+    // ---- cluster isolate (legend) ----
+    function isolateCluster(cid){
+      focusSet = null;
+      isolatedCluster = (isolatedCluster === cid) ? null : cid;
+      if(active) draw();
+      return isolatedCluster;
+    }
+    function clearIsolate(){
+      isolatedCluster = null;
+      if(active) draw();
+    }
+    function isolatedActive(){ return isolatedCluster != null ? isolatedCluster : null; }
+    function anyGraphSelection(){ return !!focusSet || isolatedCluster != null; }
+    function clearGraphSelection(){
+      var changed = !!focusSet || isolatedCluster != null;
+      focusSet = null; isolatedCluster = null;
+      if(active) draw();
+      return changed;
     }
 
     function activate(){
@@ -1040,6 +1187,7 @@
 
     function screenToWorld(x, y){ return [ (x - offX) / zoom, (y - offY) / zoom ]; }
 
+    // Substring matcher (fallback when tw absent, and for other views' parity).
     function nodeMatchesSearch(node, q){
       if(!q) return true;
       if(node.title && node.title.toLowerCase().indexOf(q) !== -1) return true;
@@ -1049,18 +1197,76 @@
       return false;
     }
 
+    // Weighted score: query tokens prefix-match tw terms (summed weight) plus a
+    // title-substring bonus. Degrades to substring when tw is absent/empty.
+    function nodeSearchScore(node, q, tokens){
+      var score = 0;
+      var tw = node.tw || [];
+      if(tw.length && tokens.length){
+        for(var t=0;t<tokens.length;t++){
+          var tok = tokens[t];
+          if(!tok) continue;
+          for(var k=0;k<tw.length;k++){
+            var term = String(tw[k][0]).toLowerCase();
+            if(term.indexOf(tok) === 0) score += (tw[k][1] || 0);
+          }
+        }
+      }
+      if(node.title && node.title.toLowerCase().indexOf(q) !== -1) score += 0.5;
+      if(score === 0 && (!tw.length) && nodeMatchesSearch(node, q)) score = 0.5; // pure substring fallback
+      return score;
+    }
+
+    function drawBackdrop(w, h){
+      // Faint star-chart backdrop: dotted grid + a couple of meridian rings.
+      // Screen-space, opacity <= 0.05, cheap.
+      ctx.save();
+      var gc = THEME.gridRgb;
+      ctx.fillStyle = "rgba(" + gc + ",0.05)";
+      var step = 42;
+      for(var gx = (offX % step + step) % step; gx < w; gx += step){
+        for(var gy = (offY % step + step) % step; gy < h; gy += step){
+          ctx.fillRect(gx, gy, 1, 1);
+        }
+      }
+      ctx.strokeStyle = "rgba(" + gc + ",0.045)";
+      ctx.lineWidth = 1;
+      var cx = w / 2, cy = h / 2;
+      var base = Math.min(w, h);
+      [0.28, 0.46, 0.66].forEach(function(f){
+        ctx.beginPath();
+        ctx.arc(cx, cy, base * f, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+      ctx.restore();
+    }
+
     function draw(){
       if(!ctx) return;
       var w = canvas.width / dpr, h = canvas.height / dpr;
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = THEME.bg;
       ctx.fillRect(0, 0, w, h);
+      drawBackdrop(w, h);
 
       var q = (state.search || "").trim().toLowerCase();
       var searchActive = q.length > 0;
+      var tokens = searchActive ? q.split(/\s+/).filter(Boolean) : [];
 
+      // Weighted search scores (only when searching and no focus/isolate override).
+      var scoreMax = 0, scoreOf = null;
+      if(searchActive && !focusSet && isolatedCluster == null){
+        scoreOf = new Map();
+        for(var s0=0;s0<nodes.length;s0++){
+          var sc = nodeSearchScore(nodes[s0], q, tokens);
+          scoreOf.set(nodes[s0].i, sc);
+          if(sc > scoreMax) scoreMax = sc;
+        }
+      }
+
+      // Hover highlight only when no held focus/isolate.
       var highlightSet = null;
-      if(hovered){
+      if(hovered && !focusSet && isolatedCluster == null && !searchActive){
         highlightSet = new Set();
         highlightSet.add(hovered.i);
         for(var si=0; si<springs.length; si++){
@@ -1068,6 +1274,26 @@
           if(e[0] === hovered.i) highlightSet.add(e[1]);
           else if(e[1] === hovered.i) highlightSet.add(e[0]);
         }
+      }
+
+      // Per-node alpha + label decision.
+      function nodeAlpha(node){
+        if(focusSet) return focusSet.has(node.i) ? 1 : 0.12;
+        if(isolatedCluster != null) return node.cluster === isolatedCluster ? 1 : 0.10;
+        if(scoreOf){
+          var sc = scoreOf.get(node.i) || 0;
+          if(sc <= 0) return 0.12;
+          return scoreMax > 0 ? (0.5 + 0.5 * (sc / scoreMax)) : 1;
+        }
+        if(highlightSet) return highlightSet.has(node.i) ? 1 : 0.15;
+        return 1;
+      }
+      function nodeLit(node){
+        if(focusSet) return focusSet.has(node.i);
+        if(isolatedCluster != null) return node.cluster === isolatedCluster;
+        if(scoreOf) return (scoreOf.get(node.i) || 0) > 0;
+        if(highlightSet) return highlightSet.has(node.i);
+        return false;
       }
 
       ctx.save();
@@ -1081,7 +1307,14 @@
         if(!A || !B) continue;
         var ew = edge[2];
         var alpha = 0.2 + ew * 0.5;
-        if(highlightSet){
+        var aLit = nodeLit(A), bLit = nodeLit(B);
+        if(focusSet){
+          alpha = (aLit && bLit) ? Math.min(1, alpha + 0.35) : alpha * 0.10;
+        } else if(isolatedCluster != null){
+          alpha = (aLit && bLit) ? alpha : alpha * 0.08;
+        } else if(scoreOf){
+          alpha = (aLit && bLit) ? alpha : alpha * 0.12;
+        } else if(highlightSet){
           var isHL = highlightSet.has(edge[0]) && highlightSet.has(edge[1]) &&
                      (edge[0] === hovered.i || edge[1] === hovered.i);
           alpha = isHL ? Math.min(1, alpha + 0.35) : alpha * 0.15;
@@ -1094,19 +1327,20 @@
         ctx.stroke();
       }
 
-      // nodes
+      // nodes (soft glow in cluster color for lit nodes → constellation feel)
       for(var ni=0; ni<nodes.length; ni++){
         var node = nodes[ni];
-        var matches = nodeMatchesSearch(node, q);
-        var alpha2 = 1;
-        if(highlightSet && !highlightSet.has(node.i)) alpha2 = 0.15;
-        if(searchActive && !matches) alpha2 = Math.min(alpha2, 0.15);
+        var a2 = nodeAlpha(node);
+        var lit = nodeLit(node) || (!focusSet && isolatedCluster == null && !scoreOf && !highlightSet);
 
-        ctx.globalAlpha = alpha2;
+        ctx.globalAlpha = a2;
         ctx.beginPath();
         ctx.arc(node.x, node.y, node.r, 0, Math.PI * 2);
         ctx.fillStyle = node.color;
+        if(lit && a2 > 0.5){ ctx.shadowBlur = 10; ctx.shadowColor = node.color; }
+        else { ctx.shadowBlur = 0; }
         ctx.fill();
+        ctx.shadowBlur = 0;
         if(selectedNode && node.i === selectedNode.i){
           ctx.lineWidth = 2 / zoom;
           ctx.strokeStyle = THEME.text;
@@ -1114,10 +1348,12 @@
         }
         ctx.globalAlpha = 1;
 
-        var forceLabel = (highlightSet && highlightSet.has(node.i)) || (searchActive && matches && zoom > 0.7);
+        var forceLabel = (a2 >= 0.99 && (focusSet || isolatedCluster != null)) ||
+                         (scoreOf && (scoreOf.get(node.i) || 0) > 0 && zoom > 0.55) ||
+                         (highlightSet && highlightSet.has(node.i));
         var showLabel = zoom > 1.6 || forceLabel;
         if(showLabel){
-          ctx.globalAlpha = alpha2;
+          ctx.globalAlpha = a2;
           ctx.fillStyle = THEME.text;
           ctx.font = (12 / zoom) + "px sans-serif";
           ctx.fillText(truncate(node.title, 30), node.x + node.r + 4, node.y + 4);
@@ -1132,8 +1368,11 @@
     function updateHud(){
       var el = $("graphHud");
       if(!el) return;
-      el.textContent = nodes.length + " nodes · " + springs.length + " edges ≥ " +
-        state.edgeThreshold.toFixed(2) + " · zoom " + zoom.toFixed(2) + "×";
+      var extra = "";
+      if(focusSet) extra = " · focus " + focusSet.size;
+      else if(isolatedCluster != null) extra = " · region isolated";
+      el.textContent = nodes.length + " nodes · " + springs.length + " links ≥ " +
+        state.edgeThreshold.toFixed(2) + " · zoom " + zoom.toFixed(2) + "× · chart" + extra;
     }
 
     function hitTest(mx, my){
@@ -1215,17 +1454,41 @@
         dragging = null;
         canvas.classList.remove("dragging");
         warmupTicks = Math.max(warmupTicks, 120);
-        if(wasClick) openDetail(node.i);
+        if(wasClick) onGraphNodeClick(node.i);   // focus + story panel
       } else if(panning){
+        var wasBgClick = !dragMoved;
         panning = false;
         canvas.classList.remove("dragging");
+        if(wasBgClick) onGraphBackground();       // clear focus / isolate
       }
+    }
+
+    function onDblClick(ev){
+      if(!active) return;
+      var rect = canvas.getBoundingClientRect();
+      var mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
+      var hit = hitTest(mx, my);
+      if(hit && !focusSet) focusNode(hit.i);       // first: establish focus
+      expandFocus();                               // then expand one ring
     }
 
     return {
       init: init, setData: setData, activate: activate, deactivate: deactivate,
       rebuildSprings: rebuildSprings, setSelected: setSelected,
-      redraw: function(){ if(active) draw(); }
+      redraw: function(){ if(active) draw(); },
+      focusNode: focusNode, expandFocus: expandFocus, clearFocus: clearFocus,
+      focusActive: focusActive, isolateCluster: isolateCluster, clearIsolate: clearIsolate,
+      isolatedActive: isolatedActive, anyGraphSelection: anyGraphSelection,
+      clearGraphSelection: clearGraphSelection,
+      // test/debug helpers (only wired to window under ?__test=1)
+      screenPosOf: function(i){ var n = nodeByIndex.get(i); return n ? [n.x * zoom + offX, n.y * zoom + offY] : null; },
+      debugScores: function(q){
+        q = (q || "").trim().toLowerCase();
+        var toks = q.split(/\s+/).filter(Boolean);
+        return nodes.map(function(n){ return [n.title, nodeSearchScore(n, q, toks)]; })
+          .sort(function(a, b){ return b[1] - a[1]; });
+      },
+      focusSize: function(){ return focusSet ? focusSet.size : 0; }
     };
   })();
 
@@ -1238,9 +1501,17 @@
     });
     state.neighbors = new Map();
     state.sessionByIndex = new Map();
+    state.twByIndex = new Map();        // i -> Map(term -> weight), from `tw` (may be empty)
     (d.sessions || []).forEach(function(s){
       state.neighbors.set(s.i, []);
       state.sessionByIndex.set(s.i, s);
+      var m = new Map();
+      if(Array.isArray(s.tw)){
+        s.tw.forEach(function(pair){
+          if(Array.isArray(pair) && pair.length >= 2) m.set(String(pair[0]), pair[1]);
+        });
+      }
+      state.twByIndex.set(s.i, m);
     });
     (d.edges || []).forEach(function(e){
       var a = e[0], b = e[1], w = e[2];
@@ -1248,6 +1519,21 @@
       if(state.neighbors.has(b)) state.neighbors.get(b).push({i:a, w:w});
     });
     state.neighbors.forEach(function(arr){ arr.sort(function(x,y){ return y.w - x.w; }); });
+  }
+
+  // Shared-term explanation for an edge (i, j): intersection of the two sessions'
+  // tw term sets, ranked by min(w_i, w_j), top `k`. Empty when tw is absent.
+  function sharedTermsBetween(i, j, k){
+    k = k || 3;
+    var mi = state.twByIndex && state.twByIndex.get(i);
+    var mj = state.twByIndex && state.twByIndex.get(j);
+    if(!mi || !mj || mi.size === 0 || mj.size === 0) return [];
+    var out = [];
+    mi.forEach(function(wi, term){
+      if(mj.has(term)) out.push([term, Math.min(wi, mj.get(term))]);
+    });
+    out.sort(function(a, b){ return b[1] - a[1]; });
+    return out.slice(0, k).map(function(p){ return p[0]; });
   }
 
   function loadData(){
@@ -1259,7 +1545,7 @@
       if(json.sessions.length === 0){
         state.data = json;
         buildIndices();
-        showError("No sessions indexed yet. Run the indexer, then Retry.");
+        showError("No sessions charted yet — run the indexer, then retry.");
         renderStats();
         return;
       }
@@ -1279,13 +1565,56 @@
     renderFusion();
     renderChatSidebar();
     Graph.setData(state.data);
+    renderGraphLegend();
   }
 
   function renderStats(){
     var d = state.data;
     if(!d){ $("statsBar").textContent = ""; return; }
     $("statsBar").textContent = d.sessions.length + " sessions · " + d.clusters.length +
-      " clusters · generated " + fmtRelative(d.generated);
+      " regions · charted " + fmtRelative(d.generated);
+  }
+
+  // ---------- Graph cluster legend (map legend) ----------
+  function renderGraphLegend(){
+    var body = $("legendBody");
+    if(!body || !state.data) return;
+    var clusters = (state.data.clusters || []).slice().sort(function(a, b){
+      return (b.size || 0) - (a.size || 0);
+    });
+    var LIMIT = 12;
+    var shown = state.graph.legendExpanded ? clusters : clusters.slice(0, LIMIT);
+    var hiddenCount = clusters.length - shown.length;
+    var html = shown.map(function(c){
+      var color = state.clusterColor.get(c.id) || "#888";
+      var active = (state.graph.isolatedCluster === c.id) ? " active" : "";
+      return '<div class="legend-row' + active + '" data-cid="' + escapeHtml(String(c.id)) + '">' +
+        '<span class="cluster-dot" style="background:' + color + ';color:' + color + '"></span>' +
+        '<span class="legend-label" title="' + escapeHtml(c.label) + '">' + escapeHtml(c.label) + "</span>" +
+        '<span class="legend-size">' + (c.size || 0) + "</span></div>";
+    }).join("");
+    if(!state.graph.legendExpanded && hiddenCount > 0){
+      html += '<div class="legend-more" id="legendMore">+' + hiddenCount + " more regions</div>";
+    } else if(state.graph.legendExpanded && clusters.length > LIMIT){
+      html += '<div class="legend-more" id="legendMore">show fewer</div>';
+    }
+    body.innerHTML = html || '<div class="legend-more">No regions charted.</div>';
+
+    body.querySelectorAll(".legend-row").forEach(function(row){
+      row.addEventListener("click", function(){
+        var cid = parseInt(row.dataset.cid, 10);
+        var nowIso = Graph.isolateCluster(cid);
+        state.graph.isolatedCluster = nowIso;
+        renderGraphLegend();
+      });
+    });
+    var moreBtn = $("legendMore");
+    if(moreBtn){
+      moreBtn.addEventListener("click", function(){
+        state.graph.legendExpanded = !state.graph.legendExpanded;
+        renderGraphLegend();
+      });
+    }
   }
 
   function showError(msg){
@@ -2271,10 +2600,118 @@
   }
 
   // ---------- Detail panel ----------
-  function openDetail(i){
+  function clusterLabelOf(cid){
+    var lbl = null;
+    (state.data && state.data.clusters || []).forEach(function(c){ if(c.id === cid) lbl = c.label; });
+    return lbl || ("region " + cid);
+  }
+  function clusterSizeOf(cid){
+    var sz = 0;
+    (state.data && state.data.clusters || []).forEach(function(c){ if(c.id === cid) sz = c.size || 0; });
+    return sz;
+  }
+
+  // Top-k terms for a session: weighted `tw` when present, else the flat `terms`.
+  function topTermsOf(i, s, k){
+    k = k || 3;
+    var m = state.twByIndex && state.twByIndex.get(i);
+    if(m && m.size){
+      return Array.from(m.entries()).sort(function(a, b){ return b[1] - a[1]; })
+        .slice(0, k).map(function(p){ return p[0]; });
+    }
+    return (s.terms || []).slice(0, k);
+  }
+
+  function joinTerms(arr){
+    if(!arr.length) return "various topics";
+    if(arr.length === 1) return "<strong>" + escapeHtml(arr[0]) + "</strong>";
+    var head = arr.slice(0, -1).map(function(t){ return "<strong>" + escapeHtml(t) + "</strong>"; });
+    return head.join(", ") + " and <strong>" + escapeHtml(arr[arr.length - 1]) + "</strong>";
+  }
+
+  function factsHtml(s){
+    return '<div class="detail-row"><div class="detail-label">Project</div><div>' + escapeHtml(s.projectLabel || s.project) + "</div></div>" +
+      '<div class="detail-row"><div class="detail-label">Modified</div><div>' + fmtDateTime(s.mtime) +
+        ' <span style="color:var(--muted);">(' + fmtRelative(s.mtime) + ")</span></div></div>" +
+      '<div class="detail-row"><div class="detail-label">Messages</div><div>' + s.msgs + "</div></div>" +
+      '<div class="detail-row"><div class="detail-label">Size</div><div>' + s.kb + " KB</div></div>" +
+      '<div class="detail-row"><div class="detail-label">Resume</div>' +
+        '<div class="resume-box"><code id="resumeCode">claude --resume ' + escapeHtml(s.id) + "</code>" +
+        '<button class="copy-btn" id="copyResumeBtn">Copy</button></div></div>';
+  }
+
+  function wireDetailCommon(s){
+    var copyBtn = $("copyResumeBtn");
+    if(copyBtn) copyBtn.addEventListener("click", function(){ copyText("claude --resume " + s.id); });
+    var openInChatBtn = $("openInChatBtn");
+    if(openInChatBtn){
+      openInChatBtn.onclick = function(){ openInChat(s); };
+    }
+  }
+
+  // mode: "stats" (tiles/tree/fusion) or "story" (graph clicks)
+  function openDetail(i, mode){
     var s = state.sessionByIndex.get(i);
     if(!s) return;
     state.selectedIndex = i;
+    mode = mode || "stats";
+
+    if(mode === "story"){
+      $("detailTitle").textContent = "Session · story";
+      var terms = topTermsOf(i, s, 3);
+      var lead = "Mostly about " + joinTerms(terms) + " — part of the '" +
+        escapeHtml(clusterLabelOf(s.cluster)) + "' region (" + clusterSizeOf(s.cluster) +
+        " related session" + (clusterSizeOf(s.cluster) === 1 ? "" : "s") + "), last touched " +
+        escapeHtml(fmtRelative(s.mtime)) + ".";
+
+      var conns = (state.neighbors.get(i) || []).filter(function(nb){
+        return nb.w >= state.edgeThreshold;
+      });
+      var connHtml;
+      if(!conns.length){
+        connHtml = '<div class="stats" style="padding:6px 2px;">No links above the current threshold (' +
+          state.edgeThreshold.toFixed(2) + "). Lower the edge slider to reveal weaker ties.</div>";
+      } else {
+        connHtml = conns.map(function(nb){
+          var ns = state.sessionByIndex.get(nb.i);
+          var shared = sharedTermsBetween(i, nb.i, 2);
+          var linkedBy = shared.length
+            ? 'linked by: ' + shared.map(function(t){ return "<b>" + escapeHtml(t) + "</b>"; }).join(", ")
+            : "weak topical overlap";
+          var pct = Math.max(4, Math.min(100, Math.round(nb.w * 100)));
+          return '<div class="story-conn" data-goto="' + nb.i + '">' +
+            '<div class="story-conn-top"><span class="story-conn-title">' +
+              escapeHtml(truncate(ns ? ns.title : "?", 40)) + "</span>" +
+              '<span class="story-conn-w">' + nb.w.toFixed(2) + "</span></div>" +
+            '<div class="story-conn-bar"><span style="width:' + pct + '%"></span></div>' +
+            '<div class="story-conn-terms">' + linkedBy + "</div></div>";
+        }).join("");
+      }
+
+      $("detailBody").innerHTML =
+        '<div class="story-lead">' + lead + "</div>" +
+        '<div class="story-actions">' +
+          '<button class="story-btn primary" id="askAboutBtn">Ask about this session</button>' +
+          '<button class="story-btn" id="openInChat2Btn">Open in Chat</button>' +
+        "</div>" +
+        '<div class="detail-row"><div class="detail-label">Connections</div>' + connHtml + "</div>" +
+        factsHtml(s);
+
+      $("detailBody").querySelectorAll(".story-conn").forEach(function(el){
+        el.addEventListener("click", function(){ graphSelectNode(parseInt(el.dataset.goto, 10)); });
+      });
+      var askBtn = $("askAboutBtn");
+      if(askBtn) askBtn.addEventListener("click", function(){ askAboutSession(s); });
+      var oic2 = $("openInChat2Btn");
+      if(oic2) oic2.addEventListener("click", function(){ openInChat(s); });
+      wireDetailCommon(s);
+      $("detailPanel").classList.add("open");
+      Graph.setSelected(i);
+      return;
+    }
+
+    // ---- stats mode (unchanged content) ----
+    $("detailTitle").textContent = "Session detail";
     var neighbors = (state.neighbors.get(i) || []).slice(0, 5);
     var neighborsHtml = neighbors.map(function(nb){
       var ns = state.sessionByIndex.get(nb.i);
@@ -2299,16 +2736,38 @@
         '<div class="resume-box"><code id="resumeCode">claude --resume ' + escapeHtml(s.id) + "</code>" +
         '<button class="copy-btn" id="copyResumeBtn">Copy</button></div></div>';
 
-    var copyBtn = $("copyResumeBtn");
-    if(copyBtn) copyBtn.addEventListener("click", function(){ copyText("claude --resume " + s.id); });
     $("detailBody").querySelectorAll(".neighbor-row").forEach(function(el){
       el.addEventListener("click", function(){ openDetail(parseInt(el.dataset.goto, 10)); });
     });
-    var openInChatBtn = $("openInChatBtn");
-    if(openInChatBtn) openInChatBtn.addEventListener("click", function(){ openInChat(s); });
-
+    wireDetailCommon(s);
     $("detailPanel").classList.add("open");
     Graph.setSelected(i);
+  }
+
+  // Graph node click / connection click: pin focus AND open the story panel.
+  function graphSelectNode(i){
+    Graph.focusNode(i);
+    state.graph.isolatedCluster = null;
+    renderGraphLegend();
+    openDetail(i, "story");
+  }
+  function onGraphNodeClick(i){ graphSelectNode(i); }
+  function onGraphBackground(){
+    if(Graph.clearGraphSelection()){
+      state.graph.isolatedCluster = null;
+      renderGraphLegend();
+      closeDetail();
+    }
+  }
+
+  function askAboutSession(s){
+    closeDetail();
+    switchTab("chat");
+    selectChatSession(s.id, s.project);
+    if(composerEl){
+      composerEl.value = "Recap this session: what was done, what was decided, and what state is it in now?";
+      composerEl.focus();
+    }
   }
 
   function closeDetail(){
@@ -2451,6 +2910,14 @@
     if(btn){ btn.textContent = theme === "light" ? "☀" : "☾"; }
     readTheme();
     Graph.redraw();
+    // Some engines don't repaint text/bg colors driven by CSS vars inside an
+    // already-scrolled container until a reflow — nudge the transcript's paint
+    // without touching layout or scroll position.
+    var tr = $("chatTranscript");
+    if(tr){
+      tr.style.opacity = "0.999";
+      requestAnimationFrame(function(){ tr.style.opacity = ""; });
+    }
   }
   function toggleTheme(){ applyTheme(state.theme === "light" ? "dark" : "light"); }
   function initTheme(){
@@ -2600,6 +3067,20 @@
     if(ev.target === $("paletteOverlay")) closePalette();
   });
 
+  // ---------- Graph legend collapse + "/" to search ----------
+  $("legendToggle").addEventListener("click", function(){
+    var lg = $("graphLegend");
+    var collapsed = lg.classList.toggle("collapsed");
+    this.textContent = collapsed ? "+" : "–";
+    this.title = collapsed ? "Expand legend" : "Collapse legend";
+  });
+
+  function isTypingTarget(el){
+    if(!el) return false;
+    var tag = el.tagName;
+    return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+  }
+
   // ---------- Global keys ----------
   document.addEventListener("keydown", function(ev){
     if((ev.metaKey || ev.ctrlKey) && (ev.key === "k" || ev.key === "K")){
@@ -2607,11 +3088,25 @@
       togglePalette();
       return;
     }
+    if(ev.key === "/" && state.view === "graph" && !state.palette.open && !isTypingTarget(document.activeElement)){
+      ev.preventDefault();
+      var si = $("searchInput");
+      if(si) si.focus();
+      return;
+    }
     if(ev.key === "Escape"){
       if(state.palette.open){ closePalette(); return; }
       if(state.chat.skillPopupOpen){ closeSkillPopup(); return; }
       var nsp = $("newSessionPanel");
       if(nsp && nsp.style.display !== "none" && nsp.style.display !== ""){ hideNewSessionPanel(); return; }
+      // clear graph focus / isolate before closing the panel
+      if(Graph.anyGraphSelection && Graph.anyGraphSelection()){
+        Graph.clearGraphSelection();
+        state.graph.isolatedCluster = null;
+        renderGraphLegend();
+        closeDetail();
+        return;
+      }
       closeDetail();
     }
   });
@@ -2646,6 +3141,18 @@
   loadProjects();
   loadSkills();
   loadMemoryList();
+
+  // Test-only hook (never present for real users): exposes graph geometry +
+  // selection helpers so Playwright can drive real canvas interactions.
+  if(location.search.indexOf("__test=1") >= 0){
+    window.__atlas = {
+      screenPosOf: function(i){ return Graph.screenPosOf(i); },
+      debugScores: function(q){ return Graph.debugScores(q); },
+      focusSize: function(){ return Graph.focusSize(); },
+      selectNode: function(i){ graphSelectNode(i); },
+      state: state
+    };
+  }
 
 })();
 </script>
