@@ -678,6 +678,51 @@
     border:1px solid var(--accent);border-radius:20px;padding:4px 14px;
   }
 
+  /* ---------- Dashboard app (charts hand-rolled inline SVG) ---------- */
+  .dash-scroll{flex:1 1 auto;overflow-y:auto;padding:18px 20px 30px;}
+  .dash-kpis{
+    display:grid;gap:12px;margin-bottom:24px;
+    grid-template-columns:repeat(auto-fit,minmax(132px,1fr));
+  }
+  .dash-kpi{
+    background:var(--panel);border:1px solid var(--border);border-radius:10px;
+    padding:13px 15px;display:flex;flex-direction:column;gap:3px;min-width:0;
+  }
+  .dash-kpi-val{
+    font-size:25px;font-weight:800;color:var(--text);line-height:1.12;
+    font-variant-numeric:tabular-nums;letter-spacing:.3px;overflow-wrap:anywhere;
+  }
+  .dash-kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);}
+  .dash-section{margin-bottom:22px;}
+  .dash-section-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
+  .dash-h{margin:0;font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);font-weight:700;}
+  .dash-card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:15px 16px;}
+  .dash-chart{display:block;width:100%;height:auto;}
+  .dash-empty{color:var(--muted);font-size:12.5px;padding:8px 2px;}
+  /* horizontal bar rows: HTML text (crisp at any width) + inline-SVG bar */
+  .dash-hbars{display:flex;flex-direction:column;gap:13px;}
+  .dash-hbar-head{display:flex;justify-content:space-between;gap:10px;align-items:baseline;font-size:12.5px;margin-bottom:5px;}
+  .dash-hbar-label{color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .dash-hbar-val{flex:0 0 auto;color:var(--muted);font-variant-numeric:tabular-nums;}
+  .dash-hbar-track{display:block;width:100%;height:12px;}
+  /* activity series toggle */
+  .dash-toggle{display:inline-flex;gap:2px;border:1px solid var(--border);border-radius:8px;padding:2px;background:var(--bg);margin-left:auto;}
+  .dash-toggle button{
+    background:transparent;border:none;color:var(--muted);font-family:inherit;font-size:11px;
+    padding:4px 11px;border-radius:6px;cursor:pointer;line-height:1;
+  }
+  .dash-toggle button:hover:not(.active){color:var(--text);}
+  .dash-toggle button.active{background:var(--accent);color:var(--on-accent);font-weight:700;}
+  .dash-toggle button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  /* cost + tokens */
+  .dash-cost-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));align-items:start;}
+  .dash-cost-cap{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:6px;}
+  .dash-cost-total{font-size:30px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.1;}
+  .dash-note{
+    color:var(--muted);font-size:12.5px;line-height:1.6;
+    background:var(--panel);border:1px dashed var(--border);border-radius:10px;padding:13px 16px;
+  }
+
   /* ---------- reduced motion ---------- */
   @media (prefers-reduced-motion: reduce){
     *{scroll-behavior:auto !important;}
@@ -872,9 +917,8 @@
     <div class="view" id="viewDashboard" role="region" aria-label="Dashboard">
       <div class="dash-placeholder">
         <svg class="dash-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20 H20"></path><rect x="5.5" y="12.5" width="3.4" height="5.5" rx="0.6" fill="currentColor" stroke="none"></rect><rect x="10.3" y="8.5" width="3.4" height="9.5" rx="0.6" fill="currentColor" stroke="none"></rect><rect x="15.1" y="5.5" width="3.4" height="12.5" rx="0.6" fill="currentColor" stroke="none"></rect></svg>
-        <span class="dash-badge">Coming soon</span>
         <h2>Dashboard</h2>
-        <p>Usage, activity and cost analytics are being charted. This app will show sessions and messages over time, per-project and per-region activity, and cost when the session store carries it.</p>
+        <p>Usage, activity and cost analytics. Open the Dashboard to chart your sessions and messages over time, per-project and per-cluster activity, and cost when the session store carries it.</p>
       </div>
     </div>
 
@@ -3067,13 +3111,324 @@
     state.detailTrigger = null;
   }
 
+  // ========== Dashboard app: /api/usage analytics (hand-rolled inline SVG) ==========
+  // Zero-dependency law: every chart below is inline SVG built by hand. Colors come
+  // from CSS variables (theme-aware) except the per-cluster bars, which reuse the
+  // exact graph/tiles palette (state.clusterColor, matched by cluster id) so a
+  // region reads the same color everywhere. Re-rendered on theme toggle + resize.
+  state.usage = null; state.usageLoaded = false; state.usageLoading = false;
+  state.usageError = null; state.usageDaySeries = "sessions";
+
+  var DASH_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  // Cluster color matched to the graph/tiles palette by id; fallback mirrors the
+  // same PALETTE indexing so an unseen id still lands on the right hue.
+  function clusterColorFor(id){
+    return state.clusterColor.get(id) || PALETTE[Math.abs(id) % PALETTE.length];
+  }
+  function dashFmtDay(iso){
+    var p = String(iso).split("-");
+    if(p.length < 3) return String(iso);
+    return DASH_MONTHS[(parseInt(p[1], 10) || 1) - 1] + " " + (parseInt(p[2], 10) || 0);
+  }
+  function dashNum(n){ return (n == null || isNaN(n)) ? "—" : Number(n).toLocaleString(); }
+  function dashFmtSize(kb){
+    if(kb == null || isNaN(kb)) return "—";
+    if(kb < 1024) return Math.round(kb).toLocaleString() + " KB";
+    var mb = kb / 1024;
+    var v = mb >= 100 ? Math.round(mb) : (mb >= 10 ? +mb.toFixed(1) : +mb.toFixed(2));
+    return v.toLocaleString() + " MB";
+  }
+  function dashFmtCost(v){
+    v = Number(v) || 0;
+    return "$" + (v >= 1000 ? v.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : v.toFixed(2));
+  }
+  function dashNiceCeil(v){
+    if(v <= 5) return Math.max(1, Math.ceil(v));
+    var pow = Math.pow(10, Math.floor(Math.log10(v)));
+    var f = v / pow;
+    var nf = f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10;
+    return nf * pow;
+  }
+  // Fill inactive days with zeros so the activity axis is a true calendar, then
+  // cap to the last `maxDays`. (byDay from the API carries active days only.)
+  function dashFillDays(byDay, maxDays){
+    if(!byDay || !byDay.length) return [];
+    var map = {};
+    byDay.forEach(function(d){ map[d.date] = d; });
+    var cur = new Date(byDay[0].date + "T00:00:00Z");
+    var end = new Date(byDay[byDay.length - 1].date + "T00:00:00Z");
+    if(isNaN(cur.getTime()) || isNaN(end.getTime())) return byDay.slice();
+    var out = [], guard = 0;
+    while(cur <= end && guard++ < 4000){
+      var iso = cur.toISOString().slice(0, 10);
+      var e = map[iso];
+      out.push({date: iso, sessions: e ? e.sessions : 0, messages: e ? e.messages : 0});
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+    if(maxDays && out.length > maxDays) out = out.slice(out.length - maxDays);
+    return out;
+  }
+
+  // Vertical bar chart of activity over time. W is a measured pixel width so the
+  // SVG renders ~1:1 (labels stay legible at every viewport; re-rendered on resize).
+  function dashSvgBars(days, series, W){
+    var n = days.length;
+    if(!n) return '<div class="dash-empty">No activity in this range.</div>';
+    var H = 200, padL = 34, padR = 8, padT = 12, padB = 26;
+    var plotW = Math.max(1, W - padL - padR), plotH = H - padT - padB;
+    var maxV = 1;
+    days.forEach(function(d){ if((d[series] || 0) > maxV) maxV = d[series]; });
+    var top = dashNiceCeil(maxV);
+    var band = plotW / n;
+    var bw = Math.max(1, Math.min(band - 2, band * 0.8));
+    var color = series === "messages" ? "var(--accent2)" : "var(--accent)";
+    var svg = "";
+    var ticks = top >= 2 ? [0, top / 2, top] : [0, top];
+    ticks.forEach(function(tv){
+      var y = padT + plotH - (tv / top) * plotH;
+      svg += '<line x1="' + padL + '" y1="' + y.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + y.toFixed(1) +
+        '" stroke="var(--border)" stroke-width="1"' + (tv === 0 ? '' : ' stroke-dasharray="2 3"') + '/>';
+      svg += '<text x="' + (padL - 6) + '" y="' + (y + 3.5).toFixed(1) + '" text-anchor="end" font-size="10" fill="var(--muted)">' +
+        Math.round(tv).toLocaleString() + '</text>';
+    });
+    days.forEach(function(d, i){
+      var v = d[series] || 0;
+      var bh = top > 0 ? (v / top) * plotH : 0;
+      var x = padL + i * band + (band - bw) / 2;
+      var y = padT + plotH - bh;
+      var rx = Math.min(3, bw / 2);
+      svg += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) +
+        '" height="' + Math.max(0, bh).toFixed(1) + '" rx="' + rx.toFixed(1) + '" fill="' + color + '"' +
+        (v === 0 ? ' opacity="0.32"' : '') + '><title>' +
+        escapeHtml(dashFmtDay(d.date) + " · " + dashNum(v) + " " + series) + '</title></rect>';
+    });
+    var step = Math.max(1, Math.ceil(n / 6));
+    for(var i2 = 0; i2 < n; i2 += step){
+      var xx = padL + i2 * band + band / 2;
+      svg += '<text x="' + xx.toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="10" fill="var(--muted)">' +
+        escapeHtml(dashFmtDay(days[i2].date)) + '</text>';
+    }
+    var total = 0, peak = 0, peakDate = days[0].date;
+    days.forEach(function(d){ var v = d[series] || 0; total += v; if(v > peak){ peak = v; peakDate = d.date; } });
+    var label = series + " per day from " + dashFmtDay(days[0].date) + " to " + dashFmtDay(days[n - 1].date) +
+      ". Total " + total + " " + series + " over " + n + " days; peak " + peak + " on " + dashFmtDay(peakDate) + ".";
+    return '<svg class="dash-chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" ' +
+      'role="img" aria-label="' + escapeHtml(label) + '">' + svg + '</svg>';
+  }
+
+  // Cost-over-time line + area (only rendered when the store carries cost data).
+  function dashSvgLine(points, W){
+    var n = points.length;
+    if(!n) return '<div class="dash-empty">No cost in this range.</div>';
+    var H = 150, padL = 44, padR = 10, padT = 12, padB = 24;
+    var plotW = Math.max(1, W - padL - padR), plotH = H - padT - padB;
+    var maxV = 0;
+    points.forEach(function(p){ if((p.usd || 0) > maxV) maxV = p.usd; });
+    var top = maxV > 0 ? maxV : 1;
+    function px(i){ return padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW); }
+    function py(v){ return padT + plotH - (v / top) * plotH; }
+    var line = "";
+    points.forEach(function(p, i){ line += (i === 0 ? "M" : "L") + px(i).toFixed(1) + " " + py(p.usd || 0).toFixed(1) + " "; });
+    var base = (padT + plotH).toFixed(1);
+    var area = "M" + px(0).toFixed(1) + " " + base + " " + line.replace(/^M/, "L") + "L" + px(n - 1).toFixed(1) + " " + base + " Z";
+    var svg = "";
+    [0, top].forEach(function(tv){
+      var y = py(tv);
+      svg += '<line x1="' + padL + '" y1="' + y.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + y.toFixed(1) +
+        '" stroke="var(--border)" stroke-width="1"' + (tv === 0 ? '' : ' stroke-dasharray="2 3"') + '/>';
+      svg += '<text x="' + (padL - 6) + '" y="' + (y + 3.5).toFixed(1) + '" text-anchor="end" font-size="10" fill="var(--muted)">' +
+        escapeHtml(dashFmtCost(tv)) + '</text>';
+    });
+    svg += '<path d="' + area + '" fill="var(--accent)" opacity="0.12"/>';
+    svg += '<path d="' + line.trim() + '" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+    if(n <= 16){
+      points.forEach(function(p, i){
+        svg += '<circle cx="' + px(i).toFixed(1) + '" cy="' + py(p.usd || 0).toFixed(1) + '" r="3" fill="var(--accent)"><title>' +
+          escapeHtml(dashFmtDay(p.date) + " · " + dashFmtCost(p.usd || 0)) + '</title></circle>';
+      });
+    }
+    svg += '<text x="' + px(0).toFixed(1) + '" y="' + (H - 7) + '" text-anchor="start" font-size="10" fill="var(--muted)">' +
+      escapeHtml(dashFmtDay(points[0].date)) + '</text>';
+    if(n > 1){
+      svg += '<text x="' + px(n - 1).toFixed(1) + '" y="' + (H - 7) + '" text-anchor="end" font-size="10" fill="var(--muted)">' +
+        escapeHtml(dashFmtDay(points[n - 1].date)) + '</text>';
+    }
+    var total = 0, peak = 0, peakDate = points[0].date;
+    points.forEach(function(p){ var v = p.usd || 0; total += v; if(v > peak){ peak = v; peakDate = p.date; } });
+    var label = "Cost over time: " + dashFmtCost(total) + " across " + n + " days; peak " + dashFmtCost(peak) + " on " + dashFmtDay(peakDate) + ".";
+    return '<svg class="dash-chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" ' +
+      'role="img" aria-label="' + escapeHtml(label) + '">' + svg + '</svg>';
+  }
+
+  // Horizontal bars: HTML label/value text (crisp at any width) + a fluid inline
+  // SVG bar. rows: [{label, value, valLabel, color}].
+  function dashHbars(rows){
+    if(!rows.length) return '<div class="dash-empty">No data.</div>';
+    var max = 1;
+    rows.forEach(function(r){ if(r.value > max) max = r.value; });
+    return '<div class="dash-hbars">' + rows.map(function(r){
+      var pct = max > 0 ? (r.value / max) * 100 : 0;
+      // No viewBox → user units are CSS px, so rx is a true, undistorted radius
+      // while the fill width flexes fluidly as a percentage of the track.
+      return '<div class="dash-hbar-row">' +
+        '<div class="dash-hbar-head"><span class="dash-hbar-label" title="' + escapeHtml(r.label) + '">' +
+        escapeHtml(r.label) + '</span><span class="dash-hbar-val">' + escapeHtml(r.valLabel) + '</span></div>' +
+        '<svg class="dash-hbar-track" width="100%" height="12" aria-hidden="true" focusable="false">' +
+        '<rect x="0" y="0" width="100%" height="12" rx="6" fill="var(--panel-2)"/>' +
+        '<rect x="0" y="0" width="' + pct.toFixed(2) + '%" height="12" rx="6" fill="' + r.color + '"><title>' +
+        escapeHtml(r.label + " · " + r.valLabel) + '</title></rect></svg></div>';
+    }).join("") + '</div>';
+  }
+
+  var DASH_GLYPH = '<svg class="dash-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20 H20"/><rect x="5.5" y="12.5" width="3.4" height="5.5" rx="0.6" fill="currentColor" stroke="none"/><rect x="10.3" y="8.5" width="3.4" height="9.5" rx="0.6" fill="currentColor" stroke="none"/><rect x="15.1" y="5.5" width="3.4" height="12.5" rx="0.6" fill="currentColor" stroke="none"/></svg>';
+  function dashPlaceholder(title, msg, extra){
+    return '<div class="dash-placeholder">' + DASH_GLYPH +
+      '<h2>' + escapeHtml(title) + '</h2><p>' + escapeHtml(msg) + '</p>' + (extra || "") + '</div>';
+  }
+
+  function loadUsage(force){
+    if(state.usageLoading) return;
+    if(state.usageLoaded && !force) return;
+    state.usageLoading = true;
+    state.usageError = null;
+    if(!state.usageLoaded) renderDashboard();   // first load → "charting…"
+    apiGet("/api/usage").then(function(u){
+      state.usage = (u && typeof u === "object") ? u : {};
+      state.usageLoaded = true;
+      state.usageError = null;
+    }).catch(function(err){
+      state.usageError = (err && err.message) ? err.message : "request failed";
+    }).finally(function(){
+      state.usageLoading = false;
+      renderDashboard();
+      renderHome();   // Hub Home dashboard card may upgrade to a cost total
+    });
+  }
+
+  function renderDashboard(){
+    var host = $("viewDashboard");
+    if(!host) return;
+    if(state.usageError){
+      host.innerHTML = dashPlaceholder("Couldn’t load usage", state.usageError,
+        '<button class="retry-btn" type="button" data-dash-retry>Retry</button>');
+      return;
+    }
+    if(!state.usageLoaded){
+      host.innerHTML = dashPlaceholder(state.usageLoading ? "Charting usage…" : "Dashboard",
+        state.usageLoading ? "Reading your sessions, messages and activity."
+                           : "Usage, activity and cost analytics.");
+      return;
+    }
+    var u = state.usage || {};
+    var t = u.totals || {};
+    if(!u.totals || (t.sessions || 0) === 0){
+      host.innerHTML = dashPlaceholder("No usage charted yet",
+        "Run the indexer to chart sessions, then reopen the Dashboard.",
+        '<button class="retry-btn" type="button" data-dash-retry>Reload</button>');
+      return;
+    }
+    var cw = host.clientWidth || 760;
+    var W = Math.max(240, Math.min(1200, cw - 72));   // card content width
+
+    var kpis = [
+      ["Sessions", dashNum(t.sessions)],
+      ["Messages", dashNum(t.messages)],
+      ["Size", dashFmtSize(t.kb)],
+      ["Clusters", dashNum(t.clusters)],
+      ["Projects", dashNum(t.projects)]
+    ];
+    var html = '<div class="dash-scroll">';
+    html += '<div class="dash-kpis" role="group" aria-label="Usage totals">' + kpis.map(function(k){
+      return '<div class="dash-kpi"><span class="dash-kpi-val">' + escapeHtml(k[1]) +
+        '</span><span class="dash-kpi-label">' + escapeHtml(k[0]) + '</span></div>';
+    }).join("") + '</div>';
+
+    // Activity over time
+    var series = (state.usageDaySeries === "messages") ? "messages" : "sessions";
+    var days = dashFillDays(u.byDay || [], 90);
+    html += '<div class="dash-section"><div class="dash-section-head"><h3 class="dash-h">Activity over time</h3>' +
+      '<div class="dash-toggle" role="group" aria-label="Activity series">' +
+      '<button type="button" data-dash-series="sessions" class="' + (series === "sessions" ? "active" : "") +
+      '" aria-pressed="' + (series === "sessions" ? "true" : "false") + '">Sessions</button>' +
+      '<button type="button" data-dash-series="messages" class="' + (series === "messages" ? "active" : "") +
+      '" aria-pressed="' + (series === "messages" ? "true" : "false") + '">Messages</button>' +
+      '</div></div><div class="dash-card">' + dashSvgBars(days, series, W) + '</div></div>';
+
+    // Sessions by project
+    var proj = (u.byProject || []).slice(0, 12).map(function(p){
+      return { label: p.label || p.dir || "(project)", value: p.sessions || 0,
+        valLabel: dashNum(p.sessions || 0), color: "var(--accent2)" };
+    });
+    html += '<div class="dash-section"><div class="dash-section-head"><h3 class="dash-h">Sessions by project</h3></div>' +
+      '<div class="dash-card">' + dashHbars(proj) + '</div></div>';
+
+    // Sessions by cluster (each bar in that cluster's palette color)
+    var clus = (u.byCluster || []).slice().sort(function(a, b){ return (b.size || 0) - (a.size || 0); }).map(function(c){
+      return { label: c.label || ("cluster " + c.cluster), value: c.size || 0,
+        valLabel: dashNum(c.size || 0), color: clusterColorFor(c.cluster) };
+    });
+    html += '<div class="dash-section"><div class="dash-section-head"><h3 class="dash-h">Sessions by cluster</h3></div>' +
+      '<div class="dash-card">' + dashHbars(clus) + '</div></div>';
+
+    // Cost & tokens
+    html += '<div class="dash-section"><div class="dash-section-head"><h3 class="dash-h">Cost &amp; tokens</h3></div>';
+    if(u.cost || u.tokens){
+      html += '<div class="dash-card"><div class="dash-cost-grid">';
+      if(u.cost){
+        html += '<div><div class="dash-cost-cap">Total spend</div><div class="dash-cost-total">' +
+          escapeHtml(dashFmtCost(u.cost.totalUsd)) + '</div></div>';
+      }
+      if(u.tokens){
+        html += '<div class="dash-kpi" style="background:var(--bg);"><span class="dash-kpi-val">' +
+          escapeHtml(dashNum(u.tokens.input)) + '</span><span class="dash-kpi-label">Input tokens</span></div>';
+        html += '<div class="dash-kpi" style="background:var(--bg);"><span class="dash-kpi-val">' +
+          escapeHtml(dashNum(u.tokens.output)) + '</span><span class="dash-kpi-label">Output tokens</span></div>';
+      }
+      html += '</div>';
+      if(u.cost && u.cost.byDay && u.cost.byDay.length){
+        html += '<div style="margin-top:14px;">' + dashSvgLine(u.cost.byDay.slice(-90), W) + '</div>';
+      }
+      html += '</div>';
+    } else {
+      html += '<div class="dash-note">No cost/token data in this store — activity metrics only.</div>';
+    }
+    html += '</div>';   // /cost section
+
+    html += '</div>';   // /dash-scroll
+    host.innerHTML = html;
+  }
+
+  // Activity series toggle + retry are delegated on the (persistent) view element.
+  $("viewDashboard").addEventListener("click", function(ev){
+    var seriesBtn = ev.target.closest("[data-dash-series]");
+    if(seriesBtn){
+      var v = seriesBtn.getAttribute("data-dash-series");
+      if(v !== state.usageDaySeries){
+        state.usageDaySeries = v;
+        renderDashboard();
+        announce(capitalize(v) + " per day.");
+      }
+      return;
+    }
+    if(ev.target.closest("[data-dash-retry]")){ loadUsage(true); }
+  });
+
+  // Re-render charts at the new measured width when the Dashboard is the live app.
+  var _dashResizeT = null;
+  window.addEventListener("resize", function(){
+    if(state.app !== "dashboard" || !state.usageLoaded) return;
+    clearTimeout(_dashResizeT);
+    _dashResizeT = setTimeout(function(){ if(state.app === "dashboard") renderDashboard(); }, 160);
+  });
+
   // ---------- wiring ----------
   function capitalize(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
 
   // ========== Galaxy Hub shell: apps, views, navigation ==========
   // Apps group the original 8 tabs. Nodes/Vault carry internal view tabs;
-  // Stardrive/Projects are single-view; Home is the launcher; Dashboard is a
-  // present-but-"coming soon" placeholder (deliberately unwired to any endpoint).
+  // Stardrive/Projects/Dashboard are single-container apps; Home is the launcher.
+  // Dashboard fetches GET /api/usage on open and charts it (see loadUsage above).
   var APP_DEF = {
     home:      { label:"Home",      views:[],                                def:null,       cont:"viewHome" },
     stardrive: { label:"Stardrive", views:["chat"],                          def:"chat",     cont:null },
@@ -3172,6 +3527,10 @@
     var cont = $(contId);
     if(cont) cont.classList.add("active");
     if(view === "graph"){ Graph.activate(); } else { Graph.deactivate(); }
+    if(app === "dashboard"){
+      // Fetch once on open; re-render at the now-visible width if already loaded.
+      if(state.usageLoaded) renderDashboard(); else loadUsage();
+    }
 
     updateSubbar(app, view);
 
@@ -3282,11 +3641,16 @@
     var nProjects = Array.isArray(state.projects) ? state.projects.length : null;
     function num(n){ return (n == null) ? "…" : n; }
     function plural(n, w){ return num(n) + " " + w + (n === 1 ? "" : "s"); }
+    // Dashboard card shows a real live stat: cost total once usage is loaded and
+    // the store carries cost, otherwise total sessions (always available).
+    var dashStat = (state.usage && state.usage.cost)
+      ? dashFmtCost(state.usage.cost.totalUsd) + " total"
+      : plural(nSessions, "session");
     var cards = [
       { app:"stardrive", desc:"Read, resume and drive your Claude Code sessions.", stat: plural(nSessions, "session") },
       { app:"nodes",     desc:"See the shape of your work — the session galaxy.",  stat: plural(nClusters, "cluster") },
       { app:"vault",     desc:"Everything you have saved — memory and skills.",    stat: plural(nSkills, "skill") + " · " + plural(nMemory, "memory file") },
-      { app:"dashboard", desc:"Usage, activity and cost analytics.",               stat:"soon", soon:true },
+      { app:"dashboard", desc:"Usage, activity and cost analytics.",               stat: dashStat },
       { app:"projects",  desc:"Filter your sessions by the project they belong to.", stat: plural(nProjects, "project") }
     ];
     grid.innerHTML = cards.map(function(c){
@@ -3419,7 +3783,10 @@
     fetch("/refresh", {method:"POST"}).then(function(res){
       return res.json().catch(function(){ return {}; }).then(function(j){
         if(!res.ok || j.ok === false) throw new Error(j.error || ("HTTP " + res.status));
-        return loadData();
+        return loadData().then(function(){
+          // Refetch the Dashboard's usage aggregate too, if it's in play.
+          if(state.usageLoaded || state.app === "dashboard") return loadUsage(true);
+        });
       });
     }).catch(function(err){
       showError("Refresh failed — " + err.message);
@@ -3446,6 +3813,9 @@
     if(btn){ btn.textContent = theme === "light" ? "☀" : "☾"; }
     readTheme();
     Graph.redraw();
+    // Dashboard charts are theme-aware via CSS vars; re-render so the live app
+    // repaints cleanly (and picks up any measured-width changes).
+    if(state.usageLoaded && state.app === "dashboard") renderDashboard();
     // Some engines don't repaint text/bg colors driven by CSS vars inside an
     // already-scrolled container until a reflow — nudge the transcript's paint
     // without touching layout or scroll position.

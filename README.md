@@ -114,7 +114,7 @@ One place for everything Claude Code carries between sessions: your **memory** a
 <tr>
 <td width="45%">
 
-Sessions and messages over time, per-project and per-cluster activity, and **cost / token totals** when your store carries them. The data layer already ships — a `GET /api/usage` endpoint aggregates it all at index time — and the charts are hand-rolled inline SVG, so the zero-dependency law holds. **The Dashboard app UI is in progress**; the backend it reads from is live today.
+Sessions and messages over time, per-project and per-cluster activity, and **cost / token totals** when your store carries them. The data layer already ships — a `GET /api/usage` endpoint aggregates it all at index time — and the charts are hand-rolled inline SVG — no chart library — so the zero-dependency law holds. Both the `/api/usage` data layer and the Dashboard app **ship today**.
 
 </td>
 <td width="55%">
