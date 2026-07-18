@@ -83,7 +83,7 @@
     backdrop-filter:blur(10px) saturate(1.3);-webkit-backdrop-filter:blur(10px) saturate(1.3);
     position:relative;z-index:10;
   }
-  .wordmark{font-weight:800;letter-spacing:1.5px;color:var(--accent);font-size:15px;white-space:nowrap;display:inline-flex;align-items:center;gap:8px;}
+  .wordmark{margin:0;font-weight:800;letter-spacing:1.5px;color:var(--accent);font-size:15px;white-space:nowrap;display:inline-flex;align-items:center;gap:8px;}
   .wordmark-glyph{flex:0 0 auto;display:block;}
   .icon-btn{
     background:var(--bg);border:1px solid var(--border);color:var(--text);
@@ -100,7 +100,7 @@
     background:var(--bg);border:1px solid var(--border);color:var(--text);
     border-radius:6px;padding:6px 10px;font-size:13px;flex:1 1 160px;min-width:140px;max-width:320px;
   }
-  #searchInput:focus{outline:none;border-color:var(--accent);}
+  #searchInput:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.25);}
   .slider-group{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);white-space:nowrap;}
   .slider-group input[type=range]{accent-color:var(--accent);width:120px;}
   .slider-group span.val{color:var(--text);min-width:34px;display:inline-block;}
@@ -305,7 +305,7 @@
     margin:10px 10px 6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--text);
     border-radius:6px;padding:6px 10px;font-size:13px;
   }
-  #chatSearchInput:focus{outline:none;border-color:var(--accent);}
+  #chatSearchInput:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.25);}
   #newSessionBtn{
     margin:0 10px 8px 10px;background:var(--bg);border:1px solid var(--border);color:var(--text);
     border-radius:6px;padding:7px 10px;cursor:pointer;font-size:12px;text-align:left;
@@ -319,6 +319,9 @@
   .new-session-panel select, .new-session-panel input[type=text]{
     background:var(--panel);border:1px solid var(--border);color:var(--text);
     border-radius:4px;padding:5px 7px;font-size:12px;font-family:inherit;
+  }
+  .new-session-panel select:focus, .new-session-panel input[type=text]:focus{
+    outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.25);
   }
   .chat-session-list{flex:1 1 auto;overflow-y:auto;padding:0 6px 10px 6px;}
   .chat-filter-banner{
@@ -533,7 +536,7 @@
     border:none;border-bottom:1px solid var(--border);background:var(--bg);color:var(--text);
     padding:14px 16px;font-size:15px;font-family:inherit;
   }
-  .palette-input:focus{outline:none;}
+  .palette-input:focus{outline:2px solid var(--accent);outline-offset:-2px;box-shadow:0 0 0 3px rgba(var(--accent-rgb),.22);}
   .palette-results{overflow-y:auto;padding:6px;}
   .palette-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;}
   .palette-item.active,.palette-item:hover{background:var(--panel-2);}
@@ -550,6 +553,45 @@
   ::-webkit-scrollbar-track{background:var(--bg);}
   ::-webkit-scrollbar-thumb{background:var(--border);border-radius:5px;}
   ::-webkit-scrollbar-thumb:hover{background:var(--muted);}
+
+  /* ---------- accessibility ---------- */
+  .sr-only{
+    position:absolute !important;width:1px;height:1px;padding:0;margin:-1px;
+    overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
+  }
+  .skip-link{
+    position:absolute;left:8px;top:-48px;z-index:300;
+    background:var(--accent);color:var(--on-accent);border-radius:0 0 6px 6px;
+    padding:8px 14px;font-size:13px;font-weight:700;text-decoration:none;
+    transition:top .15s ease;
+  }
+  .skip-link:focus{top:0;outline:2px solid var(--text);outline-offset:2px;}
+  /* Visible keyboard-focus ring for interactive rows/cards/disclosures.
+     :focus-visible keeps mouse clicks ring-free while keyboarding shows it. */
+  .chip:focus-visible,.tree-session:focus-visible,.chat-session-item:focus-visible,
+  .fusion-member:focus-visible,.project-card:focus-visible,.skill-row:focus-visible,
+  .memory-row:focus-visible,.neighbor-row:focus-visible,.story-conn:focus-visible,
+  .legend-row:focus-visible,.tool-chip-head:focus-visible,.md-thinking-head:focus-visible,
+  .palette-item:focus-visible{
+    outline:2px solid var(--accent);outline-offset:-2px;border-radius:6px;
+  }
+  .icon-btn:focus-visible,.tab-btn:focus-visible,#refreshBtn:focus-visible,
+  #chatSendBtn:focus-visible,.copy-btn:focus-visible,.close-btn:focus-visible,
+  .story-btn:focus-visible,.retry-btn:focus-visible,#newSessionBtn:focus-visible,
+  .graph-legend-toggle:focus-visible,.chat-sidebar-toggle:focus-visible,.md-copy:focus-visible{
+    outline:2px solid var(--accent);outline-offset:2px;
+  }
+
+  /* ---------- reduced motion ---------- */
+  @media (prefers-reduced-motion: reduce){
+    *{scroll-behavior:auto !important;}
+    .msg-row.live{animation:none !important;}
+    .typing span{animation:none !important;opacity:.7;}
+    .tool-spinner{animation:none !important;border-top-color:var(--accent2);}
+    .detail-panel{transition:none !important;}
+    .chat-sidebar{transition:none !important;}
+    .skip-link{transition:none !important;}
+  }
 
   /* ---------- responsive ---------- */
   @media (max-width:900px){
@@ -576,32 +618,34 @@
 </head>
 <body>
 
-  <div class="header">
-    <div class="wordmark"><svg class="wordmark-glyph" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="1"></circle><path d="M12 2.5 L13.4 10.6 L21.5 12 L13.4 13.4 L12 21.5 L10.6 13.4 L2.5 12 L10.6 10.6 Z" fill="currentColor"></path></svg><span>SESSION ATLAS</span></div>
+  <a href="#main" class="skip-link">Skip to main content</a>
+
+  <header class="header">
+    <h1 class="wordmark"><svg class="wordmark-glyph" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="1"></circle><path d="M12 2.5 L13.4 10.6 L21.5 12 L13.4 13.4 L12 21.5 L10.6 13.4 L2.5 12 L10.6 10.6 Z" fill="currentColor"></path></svg><span>SESSION ATLAS</span></h1>
     <div class="stats" id="statsBar">loading…</div>
     <input type="text" id="searchInput" placeholder="search title or terms…" autocomplete="off" spellcheck="false">
     <div class="slider-group">
       <span>edge ≥</span>
-      <input type="range" id="edgeSlider" min="0.15" max="0.60" step="0.01" value="0.30">
+      <input type="range" id="edgeSlider" min="0.15" max="0.60" step="0.01" value="0.30" aria-label="Edge weight threshold">
       <span class="val" id="edgeVal">0.30</span>
     </div>
     <button id="refreshBtn">Refresh</button>
     <button class="icon-btn palette-hint" id="paletteBtn" title="Command palette">Search <kbd>⌘K</kbd></button>
     <button class="icon-btn" id="themeToggle" title="Toggle theme" aria-label="Toggle theme">☾</button>
-    <div class="tabs">
-      <button class="tab-btn active" data-view="chat">Chat</button>
-      <button class="tab-btn" data-view="projects">Projects</button>
-      <button class="tab-btn" data-view="skills">Skills</button>
-      <button class="tab-btn" data-view="memory">Memory</button>
-      <button class="tab-btn" data-view="tiles">Tiles</button>
-      <button class="tab-btn" data-view="tree">Tree</button>
-      <button class="tab-btn" data-view="graph">Graph</button>
-      <button class="tab-btn" data-view="fusion">Fusion</button>
+    <div class="tabs" role="tablist" aria-label="Views">
+      <button class="tab-btn active" id="tab-chat" data-view="chat" role="tab" aria-selected="true" aria-controls="viewChat">Chat</button>
+      <button class="tab-btn" id="tab-projects" data-view="projects" role="tab" aria-selected="false" aria-controls="viewProjects">Projects</button>
+      <button class="tab-btn" id="tab-skills" data-view="skills" role="tab" aria-selected="false" aria-controls="viewSkills">Skills</button>
+      <button class="tab-btn" id="tab-memory" data-view="memory" role="tab" aria-selected="false" aria-controls="viewMemory">Memory</button>
+      <button class="tab-btn" id="tab-tiles" data-view="tiles" role="tab" aria-selected="false" aria-controls="viewTiles">Tiles</button>
+      <button class="tab-btn" id="tab-tree" data-view="tree" role="tab" aria-selected="false" aria-controls="viewTree">Tree</button>
+      <button class="tab-btn" id="tab-graph" data-view="graph" role="tab" aria-selected="false" aria-controls="viewGraph">Graph</button>
+      <button class="tab-btn" id="tab-fusion" data-view="fusion" role="tab" aria-selected="false" aria-controls="viewFusion">Fusion</button>
     </div>
-  </div>
+  </header>
 
-  <div class="main" id="main">
-    <div class="view active" id="viewChat">
+  <main class="main" id="main" tabindex="-1">
+    <div class="view active" id="viewChat" role="tabpanel" aria-labelledby="tab-chat">
       <div class="chat-layout">
         <button class="chat-sidebar-toggle" id="chatSidebarToggle" title="Sessions" aria-label="Toggle session list">☰</button>
         <div class="chat-scrim" id="chatScrim"></div>
@@ -637,31 +681,31 @@
       </div>
     </div>
 
-    <div class="view" id="viewProjects">
+    <div class="view" id="viewProjects" role="tabpanel" aria-labelledby="tab-projects">
       <div class="projects-grid" id="projectsGrid"></div>
     </div>
 
-    <div class="view" id="viewSkills">
+    <div class="view" id="viewSkills" role="tabpanel" aria-labelledby="tab-skills">
       <div class="skills-list" id="skillsList"></div>
     </div>
 
-    <div class="view" id="viewMemory">
+    <div class="view" id="viewMemory" role="tabpanel" aria-labelledby="tab-memory">
       <div class="memory-layout">
         <div class="memory-list" id="memoryList"></div>
         <div class="memory-content" id="memoryContent"><div class="stats" style="padding:14px;">Select a memory file.</div></div>
       </div>
     </div>
 
-    <div class="view" id="viewTiles">
+    <div class="view" id="viewTiles" role="tabpanel" aria-labelledby="tab-tiles">
       <div class="cluster-grid" id="clusterGrid"></div>
     </div>
 
-    <div class="view" id="viewTree">
+    <div class="view" id="viewTree" role="tabpanel" aria-labelledby="tab-tree">
       <div class="tree-container" id="treeContainer"></div>
     </div>
 
-    <div class="view" id="viewGraph">
-      <canvas id="graphCanvas"></canvas>
+    <div class="view" id="viewGraph" role="tabpanel" aria-labelledby="tab-graph">
+      <canvas id="graphCanvas" role="img" aria-label="Session similarity graph"></canvas>
       <div class="graph-legend" id="graphLegend">
         <div class="graph-legend-head">
           <span class="graph-legend-title">Legend · regions</span>
@@ -673,27 +717,27 @@
       <div class="graph-hint" id="graphHint">click: focus · double-click: expand · esc: clear · /: search</div>
     </div>
 
-    <div class="view" id="viewFusion">
+    <div class="view" id="viewFusion" role="tabpanel" aria-labelledby="tab-fusion">
       <div class="fusion-controls">
         <span>fusion ≥</span>
-        <input type="range" id="fusionSlider" min="0.50" max="0.95" step="0.01" value="0.80">
+        <input type="range" id="fusionSlider" min="0.50" max="0.95" step="0.01" value="0.80" aria-label="Fusion similarity threshold">
         <span class="val" id="fusionVal">0.80</span>
         <span style="margin-left:auto;" id="fusionSummary"></span>
       </div>
       <div class="fusion-list" id="fusionList"></div>
     </div>
 
-    <div class="detail-panel" id="detailPanel">
+    <div class="detail-panel" id="detailPanel" role="dialog" aria-labelledby="detailTitle" aria-hidden="true" tabindex="-1">
       <div class="detail-header">
         <strong id="detailTitle">Session detail</strong>
         <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
           <button class="copy-btn" id="openInChatBtn">Open in Chat</button>
-          <button class="close-btn" id="detailClose" title="Close">✕</button>
+          <button class="close-btn" id="detailClose" title="Close" aria-label="Close session detail">✕</button>
         </div>
       </div>
       <div class="detail-body" id="detailBody"></div>
     </div>
-  </div>
+  </main>
 
   <div class="palette-overlay" id="paletteOverlay">
     <div class="palette-box" role="dialog" aria-modal="true" aria-label="Command palette">
@@ -703,11 +747,14 @@
   </div>
 
   <div id="errorOverlay">
-    <div class="error-box">
+    <div class="error-box" role="alertdialog" aria-modal="true" aria-labelledby="errorMessage">
       <div id="errorMessage">Failed to load data.json</div>
       <button class="retry-btn" id="retryBtn">Retry</button>
     </div>
   </div>
+
+  <!-- Screen-reader announcer for streaming lifecycle (discrete messages only). -->
+  <div id="srAnnouncer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script>
 (function(){
@@ -1038,14 +1085,27 @@
       nodes.forEach(function(n){ nodeByIndex.set(n.i, n); });
       focusSet = null; isolatedCluster = null;
       rebuildSprings();
-      warmupTicks = 300;
+      if(reduceMotion()){ settleSync(200); warmupTicks = 0; }
+      else { warmupTicks = 300; }
+    }
+
+    // prefers-reduced-motion: pre-settle the layout synchronously so users don't
+    // see the force simulation animate, then hold (warmupTicks = 0).
+    function reduceMotion(){
+      return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    }
+    function settleSync(n){
+      var pd = dragging; dragging = null;
+      for(var s = 0; s < n; s++){ tick(); }
+      dragging = pd;
     }
 
     function rebuildSprings(){
       springs = edgesAll.filter(function(e){ return e[2] >= state.edgeThreshold; });
       springPairs = new Set(springs.map(function(e){ return e[0] + "_" + e[1]; }));
       buildAdjacency();
-      warmupTicks = Math.max(warmupTicks, 150);
+      if(reduceMotion()){ settleSync(120); warmupTicks = 0; if(active) draw(); }
+      else { warmupTicks = Math.max(warmupTicks, 150); }
     }
 
     function buildAdjacency(){
@@ -1371,8 +1431,13 @@
       var extra = "";
       if(focusSet) extra = " · focus " + focusSet.size;
       else if(isolatedCluster != null) extra = " · region isolated";
-      el.textContent = nodes.length + " nodes · " + springs.length + " links ≥ " +
+      var txt = nodes.length + " nodes · " + springs.length + " links ≥ " +
         state.edgeThreshold.toFixed(2) + " · zoom " + zoom.toFixed(2) + "× · chart" + extra;
+      el.textContent = txt;
+      // Mirror the HUD as the canvas's accessible name (only on change).
+      if(canvas && canvas.getAttribute("aria-label") !== ("Session similarity chart: " + txt)){
+        canvas.setAttribute("aria-label", "Session similarity chart: " + txt);
+      }
     }
 
     function hitTest(mx, my){
@@ -1588,7 +1653,7 @@
     var html = shown.map(function(c){
       var color = state.clusterColor.get(c.id) || "#888";
       var active = (state.graph.isolatedCluster === c.id) ? " active" : "";
-      return '<div class="legend-row' + active + '" data-cid="' + escapeHtml(String(c.id)) + '">' +
+      return '<div class="legend-row' + active + '" role="button" tabindex="0" data-cid="' + escapeHtml(String(c.id)) + '">' +
         '<span class="cluster-dot" style="background:' + color + ';color:' + color + '"></span>' +
         '<span class="legend-label" title="' + escapeHtml(c.label) + '">' + escapeHtml(c.label) + "</span>" +
         '<span class="legend-size">' + (c.size || 0) + "</span></div>";
@@ -1619,9 +1684,18 @@
 
   function showError(msg){
     $("errorMessage").textContent = msg;
-    $("errorOverlay").classList.add("show");
+    var ov = $("errorOverlay");
+    if(!ov.classList.contains("show")){ state.errorTrigger = document.activeElement; }
+    ov.classList.add("show");
+    var retry = $("retryBtn");
+    if(retry) retry.focus();   // move focus into the alert dialog
   }
-  function hideError(){ $("errorOverlay").classList.remove("show"); }
+  function hideError(){
+    $("errorOverlay").classList.remove("show");
+    var trig = state.errorTrigger;
+    state.errorTrigger = null;
+    if(trig && trig.focus){ try{ trig.focus(); }catch(e){} }
+  }
 
   // ---------- Tiles ----------
   function renderTiles(){
@@ -1636,7 +1710,7 @@
       if(q && visible.length === 0) return;
       var color = state.clusterColor.get(c.id) || "#888";
       var chips = visible.map(function(s){
-        return '<div class="chip" data-i="' + s.i + '" title="' + escapeHtml(s.title) + '">' +
+        return '<div class="chip" role="button" tabindex="0" data-i="' + s.i + '" title="' + escapeHtml(s.title) + '">' +
           escapeHtml(truncate(s.title, 42)) +
           '<span class="chip-time">' + fmtRelative(s.mtime) + "</span></div>";
       }).join("");
@@ -1684,7 +1758,7 @@
           escapeHtml(clusterLabel.get(cid) || ("cluster " + cid)) +
           ' <span class="badge">' + sessArr.length + "</span></summary>";
         sessArr.forEach(function(s){
-          html += '<div class="tree-session" data-i="' + s.i + '"><span>' +
+          html += '<div class="tree-session" role="button" tabindex="0" data-i="' + s.i + '"><span>' +
             escapeHtml(truncate(s.title, 64)) + '</span><span class="chip-time">' +
             fmtRelative(s.mtime) + "</span></div>";
         });
@@ -1740,7 +1814,7 @@
         ' <span class="badge">' + members.length + "</span></div>";
       members.forEach(function(s){
         var active = (state.chat.mode === "existing" && state.chat.selectedSessionId === s.id) ? " active" : "";
-        html += '<div class="chat-session-item' + active + '" data-id="' + escapeHtml(s.id) +
+        html += '<div class="chat-session-item' + active + '" role="button" tabindex="0" data-id="' + escapeHtml(s.id) +
           '" data-project="' + escapeHtml(s.project) + '" title="' + escapeHtml(s.title) + '"><span>' +
           escapeHtml(truncate(s.title, 38)) + '</span><span class="chip-time">' +
           fmtRelative(s.mtime) + "</span></div>";
@@ -1832,12 +1906,16 @@
       : (tool.isError ? "✕" : "✓");
     var head = document.createElement("div");
     head.className = "tool-chip-head";
+    head.setAttribute("role", "button");
+    head.setAttribute("tabindex", "0");
+    head.setAttribute("aria-expanded", "false");
+    head.setAttribute("aria-label", "Tool " + (tool.name || "tool") + " — show result");
     head.innerHTML =
-      '<span class="tool-chip-ic">⚙</span>' +
+      '<span class="tool-chip-ic" aria-hidden="true">⚙</span>' +
       '<span class="tool-chip-name">' + escapeHtml(tool.name || "tool") + "</span>" +
       '<span class="tool-chip-in">' + escapeHtml(tool.input || "") + "</span>" +
       '<span class="tool-chip-st">' + status + "</span>" +
-      '<span class="tool-chip-caret">▶</span>';
+      '<span class="tool-chip-caret" aria-hidden="true">▶</span>';
     var body = document.createElement("div");
     body.className = "tool-chip-body";
     setChipBody(body, tool);
@@ -1867,7 +1945,11 @@
     wrap.className = "md-thinking";
     var head = document.createElement("div");
     head.className = "md-thinking-head";
-    head.innerHTML = '<span>✳ thinking</span><span class="tool-chip-caret">▶</span>';
+    head.setAttribute("role", "button");
+    head.setAttribute("tabindex", "0");
+    head.setAttribute("aria-expanded", "false");
+    head.setAttribute("aria-label", "Show thinking");
+    head.innerHTML = '<span>✳ thinking</span><span class="tool-chip-caret" aria-hidden="true">▶</span>';
     var body = document.createElement("div");
     body.className = "md-thinking-body";
     body.textContent = thinkingText || "";
@@ -2068,6 +2150,23 @@
     div.textContent = text;
     $("chatTranscript").appendChild(div);
     scrollTranscript();
+    announce(text);  // system lines are discrete + important (errors, session start)
+  }
+
+  // ---------- Screen-reader announcer (streaming lifecycle) ----------
+  var _lastToolAnnounce = 0;
+  function announce(msg){
+    var el = $("srAnnouncer");
+    if(!el || !msg) return;
+    // Clear then set so identical consecutive messages still re-announce.
+    el.textContent = "";
+    window.setTimeout(function(){ el.textContent = msg; }, 30);
+  }
+  function announceTool(name){
+    var now = Date.now();
+    if(now - _lastToolAnnounce < 1500) return;  // throttle rapid tool bursts
+    _lastToolAnnounce = now;
+    announce("Running " + (name || "tool") + "…");
   }
 
   // Typing indicator: 3 pulsing dots in an assistant bubble, from send until the
@@ -2083,6 +2182,8 @@
     $("chatTranscript").appendChild(shell.row);
     state.chat.typingEl = shell.row;
     scrollTranscript();
+    _lastToolAnnounce = 0;
+    announce("Claude is responding…");
   }
   function removeTyping(){
     if(state.chat.typingEl && state.chat.typingEl.parentNode){
@@ -2116,6 +2217,7 @@
       state.chat.liveTextRaw = "";
     }
     state.chat.liveTextRaw += text;
+    state.chat.lastAssistantText = state.chat.liveTextRaw;
     state.chat.liveTextEl.innerHTML = renderMarkdown(state.chat.liveTextRaw);
     scrollTranscript();
   }
@@ -2135,6 +2237,7 @@
     });
     if(block.id){ chip.dataset.toolId = block.id; state.chat.toolChips[block.id] = chip; }
     col.appendChild(chip);
+    announceTool(block.name);
     state.chat.liveTextEl = null; state.chat.liveTextRaw = "";
     scrollTranscript();
   }
@@ -2150,10 +2253,18 @@
     var col = state.chat.liveCol || ensureLiveGroup();
     col.appendChild(buildTurnStats(obj));
     scrollTranscript();
+    var ft = (state.chat.lastAssistantText || "").replace(/\s+/g, " ").trim();
+    if(ft.length > 600) ft = ft.slice(0, 599) + "…";
+    if(obj && (obj.is_error || (obj.subtype && obj.subtype !== "success"))){
+      announce("Response ended with error: " + (obj.subtype || "unknown") + ".");
+    } else {
+      announce("Response complete." + (ft ? " " + ft : ""));
+    }
     state.chat.liveRow = null;
     state.chat.liveCol = null;
     state.chat.liveTextEl = null;
     state.chat.liveTextRaw = "";
+    state.chat.lastAssistantText = "";
     state.chat.toolChips = {};
   }
 
@@ -2221,6 +2332,7 @@
     state.chat.liveCol = null;
     state.chat.liveTextEl = null;
     state.chat.liveTextRaw = "";
+    state.chat.lastAssistantText = "";
     state.chat.toolChips = {};
     removeTyping();
   }
@@ -2244,6 +2356,7 @@
       }
       // Success: the /api/chat stream ends on its own (stdout EOF -> atlas_done),
       // which re-enables the composer.
+      announce("Response stopped.");
     }).catch(function(err){ appendSystemLine("Stop failed: " + err.message); });
   }
 
@@ -2408,7 +2521,7 @@
       return;
     }
     grid.innerHTML = state.projects.map(function(p){
-      return '<div class="project-card" data-dir="' + escapeHtml(p.dir) + '">' +
+      return '<div class="project-card" role="button" tabindex="0" data-dir="' + escapeHtml(p.dir) + '">' +
         '<div class="project-card-label">' + escapeHtml(p.label || p.dir) + "</div>" +
         '<div class="project-card-meta">' + (p.sessions || 0) + " sessions · " +
         fmtRelative(p.lastActivity) + "</div></div>";
@@ -2446,7 +2559,7 @@
       return;
     }
     el.innerHTML = state.skills.map(function(s){
-      return '<div class="skill-row" data-name="' + escapeHtml(s.name) + '">' +
+      return '<div class="skill-row" role="button" tabindex="0" data-name="' + escapeHtml(s.name) + '">' +
         '<div class="skill-name">/' + escapeHtml(s.name) + "</div>" +
         '<div class="skill-desc">' + escapeHtml(s.description || "") + "</div></div>";
     }).join("");
@@ -2480,7 +2593,7 @@
       return;
     }
     el.innerHTML = state.memoryList.map(function(m){
-      return '<div class="memory-row" data-file="' + escapeHtml(m.file) + '">' +
+      return '<div class="memory-row" role="button" tabindex="0" data-file="' + escapeHtml(m.file) + '">' +
         '<div class="memory-name">' + escapeHtml(m.name || m.file) + "</div>" +
         '<div class="memory-desc">' + escapeHtml(m.description || "") + "</div></div>";
     }).join("");
@@ -2571,7 +2684,7 @@
         .slice(0, 5).map(function(e){ return e[0]; });
       var ids = g.map(function(s){ return s.id; });
       var membersHtml = g.map(function(s){
-        return '<div class="fusion-member" data-i="' + s.i + '"><span>' +
+        return '<div class="fusion-member" role="button" tabindex="0" data-i="' + s.i + '"><span>' +
           escapeHtml(truncate(s.title, 52)) + '</span><span class="chip-time">' +
           fmtRelative(s.mtime) + "</span></div>";
       }).join("");
@@ -2679,7 +2792,7 @@
             ? 'linked by: ' + shared.map(function(t){ return "<b>" + escapeHtml(t) + "</b>"; }).join(", ")
             : "weak topical overlap";
           var pct = Math.max(4, Math.min(100, Math.round(nb.w * 100)));
-          return '<div class="story-conn" data-goto="' + nb.i + '">' +
+          return '<div class="story-conn" role="button" tabindex="0" data-goto="' + nb.i + '">' +
             '<div class="story-conn-top"><span class="story-conn-title">' +
               escapeHtml(truncate(ns ? ns.title : "?", 40)) + "</span>" +
               '<span class="story-conn-w">' + nb.w.toFixed(2) + "</span></div>" +
@@ -2705,7 +2818,7 @@
       var oic2 = $("openInChat2Btn");
       if(oic2) oic2.addEventListener("click", function(){ openInChat(s); });
       wireDetailCommon(s);
-      $("detailPanel").classList.add("open");
+      showDetailPanel();
       Graph.setSelected(i);
       return;
     }
@@ -2715,7 +2828,7 @@
     var neighbors = (state.neighbors.get(i) || []).slice(0, 5);
     var neighborsHtml = neighbors.map(function(nb){
       var ns = state.sessionByIndex.get(nb.i);
-      return '<div class="neighbor-row" data-goto="' + nb.i + '"><span>' +
+      return '<div class="neighbor-row" role="button" tabindex="0" data-goto="' + nb.i + '"><span>' +
         escapeHtml(truncate(ns ? ns.title : "?", 36)) + "</span><span>" +
         nb.w.toFixed(3) + "</span></div>";
     }).join("") || '<div class="stats">none above 0.15</div>';
@@ -2740,7 +2853,7 @@
       el.addEventListener("click", function(){ openDetail(parseInt(el.dataset.goto, 10)); });
     });
     wireDetailCommon(s);
-    $("detailPanel").classList.add("open");
+    showDetailPanel();
     Graph.setSelected(i);
   }
 
@@ -2770,10 +2883,30 @@
     }
   }
 
+  // Open the side panel: save the trigger + move focus in on first open,
+  // and expose it to the a11y tree (remove inert/aria-hidden).
+  function showDetailPanel(){
+    var p = $("detailPanel");
+    var wasOpen = p.classList.contains("open");
+    if(!wasOpen) state.detailTrigger = document.activeElement;
+    p.classList.add("open");
+    p.removeAttribute("aria-hidden");
+    p.inert = false;
+    if(!wasOpen){ var close = $("detailClose"); if(close) close.focus(); }
+  }
+
   function closeDetail(){
-    $("detailPanel").classList.remove("open");
+    var p = $("detailPanel");
+    var wasOpen = p.classList.contains("open");
+    p.classList.remove("open");
+    p.setAttribute("aria-hidden", "true");
+    p.inert = true;                 // remove from a11y tree + focus order when closed
     state.selectedIndex = null;
     Graph.setSelected(null);
+    if(wasOpen && state.detailTrigger && state.detailTrigger.focus){
+      try{ state.detailTrigger.focus(); }catch(e){}
+    }
+    state.detailTrigger = null;
   }
 
   // ---------- wiring ----------
@@ -2781,7 +2914,9 @@
 
   function switchTab(v){
     document.querySelectorAll(".tab-btn").forEach(function(b){
-      b.classList.toggle("active", b.dataset.view === v);
+      var on = b.dataset.view === v;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
     });
     document.querySelectorAll(".view").forEach(function(el){ el.classList.remove("active"); });
     $("view" + capitalize(v)).classList.add("active");
@@ -2928,15 +3063,37 @@
   $("themeToggle").addEventListener("click", toggleTheme);
 
   // ---------- Responsive chat sidebar (overlay < 900px) ----------
+  function sidebarIsOverlay(){
+    return window.matchMedia && window.matchMedia("(max-width:900px)").matches;
+  }
+  // When the sidebar is an off-canvas overlay (<=900px) and closed, hide it from
+  // the a11y tree + focus order. On desktop it's part of the layout — never inert.
+  function applySidebarA11y(){
+    var sb = $("chatSidebar");
+    if(!sb) return;
+    if(sidebarIsOverlay() && !sb.classList.contains("open")){
+      sb.inert = true; sb.setAttribute("aria-hidden", "true");
+    } else {
+      sb.inert = false; sb.removeAttribute("aria-hidden");
+    }
+  }
   function toggleChatSidebar(force){
     var sb = $("chatSidebar"), scrim = $("chatScrim");
     if(!sb) return;
-    var open = (force != null) ? force : !sb.classList.contains("open");
+    var wasOpen = sb.classList.contains("open");
+    var open = (force != null) ? force : !wasOpen;
     sb.classList.toggle("open", open);
     if(scrim) scrim.classList.toggle("show", open);
+    applySidebarA11y();
+    if(open && !wasOpen && sidebarIsOverlay()){
+      var si = $("chatSearchInput"); if(si) si.focus();     // move focus into drawer
+    } else if(!open && wasOpen && sidebarIsOverlay()){
+      var tog = $("chatSidebarToggle"); if(tog) tog.focus(); // restore to opener
+    }
   }
   $("chatSidebarToggle").addEventListener("click", function(){ toggleChatSidebar(); });
   $("chatScrim").addEventListener("click", function(){ toggleChatSidebar(false); });
+  window.addEventListener("resize", applySidebarA11y);
 
   // ---------- Command palette ----------
   function subseqScore(q, target){
@@ -3042,6 +3199,7 @@
 
   function openPalette(){
     state.palette.open = true;
+    state.palette.trigger = document.activeElement;   // save for restore on close
     state.palette.allItems = buildPaletteItems();
     $("paletteOverlay").classList.add("show");
     var input = $("paletteInput");
@@ -3050,8 +3208,12 @@
     input.focus();
   }
   function closePalette(){
+    if(!state.palette.open) return;
     state.palette.open = false;
     $("paletteOverlay").classList.remove("show");
+    var trig = state.palette.trigger;
+    state.palette.trigger = null;
+    if(trig && trig.focus){ try{ trig.focus(); }catch(e){} }   // restore focus to opener
   }
   function togglePalette(){ state.palette.open ? closePalette() : openPalette(); }
 
@@ -3062,6 +3224,7 @@
     else if(ev.key === "ArrowUp"){ ev.preventDefault(); movePalette(-1); }
     else if(ev.key === "Enter"){ ev.preventDefault(); runPaletteItem(state.palette.index); }
     else if(ev.key === "Escape"){ ev.preventDefault(); ev.stopPropagation(); closePalette(); }
+    else if(ev.key === "Tab"){ ev.preventDefault(); }  // focus trap: only the input is focusable
   });
   $("paletteOverlay").addEventListener("click", function(ev){
     if(ev.target === $("paletteOverlay")) closePalette();
@@ -3099,6 +3262,9 @@
       if(state.chat.skillPopupOpen){ closeSkillPopup(); return; }
       var nsp = $("newSessionPanel");
       if(nsp && nsp.style.display !== "none" && nsp.style.display !== ""){ hideNewSessionPanel(); return; }
+      // close the mobile session drawer if it's open
+      var sb = $("chatSidebar");
+      if(sb && sb.classList.contains("open") && sidebarIsOverlay()){ toggleChatSidebar(false); return; }
       // clear graph focus / isolate before closing the panel
       if(Graph.anyGraphSelection && Graph.anyGraphSelection()){
         Graph.clearGraphSelection();
@@ -3112,6 +3278,16 @@
   });
 
   // ---------- Delegated clicks: code copy, tool-chip + thinking expand ----------
+  var A11Y_ROW_SELECTOR = ".chip,.tree-session,.chat-session-item,.fusion-member," +
+    ".project-card,.skill-row,.memory-row,.neighbor-row,.story-conn,.legend-row";
+
+  // Toggle a disclosure (tool chip / thinking row) and keep aria-expanded in sync.
+  function toggleDisclosure(headEl){
+    if(!headEl || !headEl.parentNode) return;
+    var expanded = headEl.parentNode.classList.toggle("expanded");
+    headEl.setAttribute("aria-expanded", expanded ? "true" : "false");
+  }
+
   document.addEventListener("click", function(ev){
     var t = ev.target;
     if(!t || !t.closest) return;
@@ -3129,13 +3305,28 @@
       return;
     }
     var chipHead = t.closest(".tool-chip-head");
-    if(chipHead && chipHead.parentNode){ chipHead.parentNode.classList.toggle("expanded"); return; }
+    if(chipHead){ toggleDisclosure(chipHead); return; }
     var thinkHead = t.closest(".md-thinking-head");
-    if(thinkHead && thinkHead.parentNode){ thinkHead.parentNode.classList.toggle("expanded"); return; }
+    if(thinkHead){ toggleDisclosure(thinkHead); return; }
+  });
+
+  // Keyboard activation (Enter / Space) for role=button rows + disclosure heads.
+  // Rows reuse their existing click listeners via .click(); disclosures toggle.
+  document.addEventListener("keydown", function(ev){
+    if(ev.key !== "Enter" && ev.key !== " " && ev.key !== "Spacebar") return;
+    var t = ev.target;
+    if(!t || !t.closest) return;
+    var head = t.closest(".tool-chip-head, .md-thinking-head");
+    if(head){ ev.preventDefault(); toggleDisclosure(head); return; }
+    var row = t.closest(A11Y_ROW_SELECTOR);
+    if(row && row === t){ ev.preventDefault(); row.click(); return; }
   });
 
   // ---------- init ----------
   initTheme();
+  // Detail panel starts closed → out of the a11y tree + focus order.
+  (function(){ var p = $("detailPanel"); if(p){ p.inert = true; p.setAttribute("aria-hidden", "true"); } })();
+  applySidebarA11y();
   Graph.init();
   loadData();
   loadProjects();
