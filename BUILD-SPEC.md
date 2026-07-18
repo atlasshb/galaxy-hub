@@ -1,4 +1,4 @@
-# SESSION ATLAS — build spec (v1)
+# STARDRIVE — build spec (v1)
 
 The missing layer over Claude Code's flat session list: auto topic-clustering, tiles,
 folder/topic tree, Obsidian-style graph, and fusion (merge/compact) candidates.
@@ -6,8 +6,8 @@ Read-only over the session store. Local-first, loopback by default.
 
 ## Paths
 - App dir: repo root
-- Deliverables: `session_atlas.py` (indexer + HTTP server, Python 3 stdlib ONLY), `index.html` (self-contained UI, zero external requests)
-- Generated: `data.json`, `atlas_sessions.log`
+- Deliverables: `stardrive.py` (indexer + HTTP server, Python 3 stdlib ONLY), `index.html` (self-contained UI, zero external requests)
+- Generated: `data.json`, `stardrive.log`
 - Source store (READ-ONLY): `~/.claude/projects/<projdir>/*.jsonl` — TOP-LEVEL files only. Never recurse into subdirectories (subagents/, workflows/ transcripts live there). Never write/modify anything under `.claude`.
 
 ## data.json contract (both builders MUST match exactly)
@@ -28,7 +28,7 @@ Read-only over the session store. Local-first, loopback by default.
 - `clusters` sorted by size desc; singletons get their own cluster.
 - `terms`: top 5 TF-IDF terms of that session.
 
-## session_atlas.py
+## stardrive.py
 1. **Scan**: iterate project dirs, top-level `*.jsonl`. Per file (utf-8, `errors='replace'`, tolerate BOM): stream max 4000 lines or 5 MB.
    - Skip lines that fail json.loads (count, don't crash).
    - `title`: first line with `"type":"summary"` → its `summary` field. Else first real user message, cleaned (strip leading `instruction:`, collapse whitespace, max 70 chars). Else id prefix.
@@ -38,12 +38,12 @@ Read-only over the session store. Local-first, loopback by default.
 3. **Cluster**: union-find over edges with w >= 0.30. Cluster label = top-3 TF-IDF terms of concatenated member docs, joined " / ".
 4. **Titles override**: if `titles_override.json` exists (`{"<sessionId>": "title"}`), those titles win.
 5. **Server**: `ThreadingHTTPServer`. Bind `--bind` (default `127.0.0.1`) on `--port` (default `8877`); on bind failure fall back to loopback (log it). Routes: `GET /` → index.html (no-cache), `GET /data.json`, `POST /refresh` → synchronous re-index, respond `{"ok":true,"nSessions":N,"secs":S}`. Any exception during refresh → 500 with error string, keep serving old data.
-6. CLI: `--index-only`, `--serve` (default: index if data.json missing/older than 6h, then serve). Log to `atlas_sessions.log`, truncate when >1 MB. No third-party imports. Handle: empty files, 0-session store, unicode, file locked by running session (open with read share — normal `open()` is fine on Windows for files being appended).
+6. CLI: `--index-only`, `--serve` (default: index if data.json missing/older than 6h, then serve). Log to `stardrive.log`, truncate when >1 MB. No third-party imports. Handle: empty files, 0-session store, unicode, file locked by running session (open with read share — normal `open()` is fine on Windows for files being appended).
 
 ## index.html
 One file, vanilla JS/CSS, dark theme (bg `#0d1117`, panels `#161b22`, border `#30363d`, text `#c9d1d9`, accent `#58a6ff`, muted `#8b949e`; 12-color cluster palette). Fetches `/data.json` on load. NO external fonts/CDNs.
 
-Header bar: `SESSION ATLAS` wordmark, stats (sessions / clusters / generated), live search input, edge-threshold slider (0.15–0.60, default 0.30), Refresh button (POST /refresh then reload data), view tabs: **Tiles | Tree | Graph | Fusion**.
+Header bar: `STARDRIVE` wordmark, stats (sessions / clusters / generated), live search input, edge-threshold slider (0.15–0.60, default 0.30), Refresh button (POST /refresh then reload data), view tabs: **Tiles | Tree | Graph | Fusion**.
 
 - **Tiles**: responsive grid of cluster cards (header = cluster label + count, colored dot), body = session chips (title, relative time). Click chip → right-side detail panel: title, project, mtime, msgs, size, terms, its strongest 5 neighbors with weights, and a copyable `claude --resume <id>` line.
 - **Tree**: collapsible: project → cluster → sessions (count badges).
