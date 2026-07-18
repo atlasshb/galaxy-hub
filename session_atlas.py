@@ -16,6 +16,7 @@ import math
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -708,8 +709,14 @@ def get_projects_cache():
 # ---------------------------------------------------------------------------
 # v2: locate the Claude Code CLI binary for headless spawning
 #
-# Per RECON.md: the npm shim (claude.cmd) is a batch wrapper around a real
-# native executable at <npm-root>\node_modules\@anthropic-ai\claude-code\bin\
+# POSIX (Linux/macOS): `claude` is a node shebang script that execve handles
+# directly, so we ALWAYS spawn it without a shell (needs_shell=False). Shell-
+# wrapping on POSIX was doubly wrong: /bin/sh word-splits/expands the prompt
+# (command injection via $(...)/backticks) and terminate() would only kill the
+# /bin/sh wrapper, orphaning the CLI's grandchildren that hold the SSE pipe.
+#
+# Windows: the npm shim (claude.cmd) is a batch wrapper around a real native
+# executable at <npm-root>\node_modules\@anthropic-ai\claude-code\bin\
 # claude.exe. Spawning that exe directly with an argv array (no shell) avoids
 # all .cmd/cmd.exe quoting hazards. Only fall back to shell-wrapping the shim
 # itself if the real exe can't be located.
@@ -717,7 +724,13 @@ def get_projects_cache():
 
 
 def resolve_claude_binary():
-    """Returns (path, needs_shell) or (None, False) if no usable binary found."""
+    """Returns (path, needs_shell) or (None, False) if no usable binary found.
+    needs_shell is NEVER True on POSIX."""
+    if os.name == "posix":
+        w = shutil.which("claude")
+        return (w, False) if w else (None, False)
+
+    # Windows (os.name == "nt") — npm-shim / .exe / .cmd resolution, unchanged.
     shim_candidates = []
     for name in ("claude.cmd", "claude.exe", "claude", "claude.ps1"):
         w = shutil.which(name)
@@ -747,33 +760,77 @@ def resolve_claude_binary():
 
 
 # ---------------------------------------------------------------------------
-# v3: stop a running chat child (POST /api/chat/stop)
+# v3.1: process-tree termination for chat children
+#
+# On POSIX the CLI is spawned as its own session / process-group leader
+# (start_new_session=True), so signalling the GROUP reaps the node process AND
+# every child it spawned — plain proc.terminate() would kill only the leader and
+# orphan grandchildren that keep the SSE stdout pipe open (so the stream never
+# EOFs / atlas_done never fires). On Windows we keep proc.terminate()/kill().
+# Shared by every kill path: /api/chat/stop, the --run-timeout timer, the
+# client-disconnect cleanup, and the finally-block terminate.
 # ---------------------------------------------------------------------------
 
 
-def stop_chat_proc(proc):
-    """Terminate a chat child immediately (SIGTERM); if still alive after 3s,
-    escalate to kill(). The wait/kill runs in a daemon thread so the HTTP
-    response returns at once. Only ever called with a proc pulled from
-    ACTIVE_PROCS — we never signal a pid that isn't in the registry. The
-    /api/chat streaming loop then finishes naturally (stdout EOF -> atlas_done)."""
+def _term_group(proc):
+    """SIGTERM the child's process group (POSIX) or proc.terminate() (Windows /
+    fallback when the group is gone or unsignalable)."""
+    if os.name == "posix":
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            return
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
     try:
         proc.terminate()
     except Exception:
         pass
 
-    def _escalate():
-        try:
-            proc.wait(timeout=3)
-        except subprocess.TimeoutExpired:
-            try:
-                proc.kill()
-            except Exception:
-                pass
-        except Exception:
-            pass
 
-    threading.Thread(target=_escalate, daemon=True).start()
+def _kill_group(proc):
+    """Hard-kill counterpart of _term_group: SIGKILL the group (POSIX) or
+    proc.kill() (Windows / fallback)."""
+    if os.name == "posix":
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            return
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+    try:
+        proc.kill()
+    except Exception:
+        pass
+
+
+def terminate_proc_tree(proc, grace=5):
+    """Graceful stop of a chat child and everything it spawned: group-SIGTERM,
+    wait up to `grace`s, then group-SIGKILL. Blocking; safe to call on an
+    already-exited proc (no-op). Callers that must not block (the HTTP request
+    thread) run it in a daemon thread."""
+    if proc.poll() is not None:
+        return
+    _term_group(proc)
+    try:
+        proc.wait(timeout=grace)
+        return
+    except subprocess.TimeoutExpired:
+        pass
+    except Exception:
+        return
+    _kill_group(proc)
+    try:
+        proc.wait(timeout=grace)
+    except Exception:
+        pass
+
+
+def stop_chat_proc(proc):
+    """POST /api/chat/stop action: group-terminate the child immediately and, if
+    still alive after 3s, group-kill — all in a daemon thread so the HTTP
+    response returns at once. Only ever called with a proc pulled from
+    ACTIVE_PROCS — we never signal a pid that isn't in the registry. The
+    /api/chat streaming loop then finishes naturally (stdout EOF -> atlas_done)."""
+    threading.Thread(target=terminate_proc_tree, args=(proc, 3), daemon=True).start()
 
 
 # ---------------------------------------------------------------------------
@@ -1145,36 +1202,29 @@ class AtlasHandler(BaseHTTPRequestHandler):
             argv += ["--permission-mode", perm_mode]
 
         creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        popen_kwargs = dict(
+            cwd=run_cwd,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            bufsize=1,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=creationflags,
+        )
+        # POSIX: make the child its own session/process-group leader so every kill
+        # path can signal the whole tree (see terminate_proc_tree). No effect on
+        # Windows spawning, which is left byte-identical.
+        if os.name == "posix":
+            popen_kwargs["start_new_session"] = True
         try:
             if needs_shell:
+                # Windows-only path: .cmd/.ps1 shims can't be exec'd directly.
                 cmd_str = subprocess.list2cmdline(argv)
-                proc = subprocess.Popen(
-                    cmd_str,
-                    cwd=run_cwd,
-                    stdin=subprocess.DEVNULL,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.DEVNULL,
-                    shell=True,
-                    text=True,
-                    bufsize=1,
-                    encoding="utf-8",
-                    errors="replace",
-                    creationflags=creationflags,
-                )
+                proc = subprocess.Popen(cmd_str, shell=True, **popen_kwargs)
             else:
-                proc = subprocess.Popen(
-                    argv,
-                    cwd=run_cwd,
-                    stdin=subprocess.DEVNULL,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.DEVNULL,
-                    shell=False,
-                    text=True,
-                    bufsize=1,
-                    encoding="utf-8",
-                    errors="replace",
-                    creationflags=creationflags,
-                )
+                proc = subprocess.Popen(argv, shell=False, **popen_kwargs)
         except OSError as e:
             logger.exception("failed to spawn claude binary")
             self._send_json({"error": "failed to spawn claude: %s" % e}, status=500)
@@ -1189,11 +1239,7 @@ class AtlasHandler(BaseHTTPRequestHandler):
         def _on_timeout():
             timed_out["v"] = True
             logger.warning("chat pid=%s hit --run-timeout, killing", proc.pid)
-            try:
-                if proc.poll() is None:
-                    proc.kill()
-            except Exception:
-                pass
+            terminate_proc_tree(proc, grace=3)
 
         timer = threading.Timer(RUN_TIMEOUT, _on_timeout)
         timer.daemon = True
@@ -1223,15 +1269,7 @@ class AtlasHandler(BaseHTTPRequestHandler):
         finally:
             timer.cancel()
             if client_gone or timed_out["v"] or proc.poll() is None:
-                try:
-                    proc.terminate()
-                    try:
-                        proc.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        proc.kill()
-                        proc.wait(timeout=5)
-                except Exception:
-                    pass
+                terminate_proc_tree(proc, grace=5)
             code = proc.poll()
             with ACTIVE_LOCK:
                 ACTIVE_PROCS.pop(proc.pid, None)
