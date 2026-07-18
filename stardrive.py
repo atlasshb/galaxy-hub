@@ -98,6 +98,10 @@ USAGE_CACHE = {}  # Dashboard /api/usage aggregate, rebuilt by run_index() (see 
 
 ACTIVE_LOCK = threading.Lock()
 ACTIVE_PROCS = {}  # pid -> subprocess.Popen, chat children currently streaming
+# Orchestration: parallel run registry (pid -> live metadata), guarded by the
+# SAME ACTIVE_LOCK as ACTIVE_PROCS. Populated alongside pid registration and
+# popped in the same cleanup path; live state only, never persisted.
+RUNS = {}  # pid -> {"pid","prompt"(cap 120),"cwd","resume","started","status"}
 RESERVED_SLOTS = 0  # L3: chat slots reserved between the cap check and pid registration
 
 ENABLE_RUN = False
@@ -1554,10 +1558,22 @@ class StardriveHandler(BaseHTTPRequestHandler):
             self._send_json({"error": "failed to spawn claude: %s" % e}, status=500)
             return
 
-        # L3: convert the reservation into a registered pid atomically.
+        # L3: convert the reservation into a registered pid atomically. The
+        # Orchestration RUNS registry is populated in the SAME locked step, so a
+        # client enumerating live runs never sees a pid in ACTIVE_PROCS but not
+        # RUNS (or vice versa). Timestamp comes from the request-handler clock.
+        started = datetime.now(timezone.utc).isoformat()
         with ACTIVE_LOCK:
             RESERVED_SLOTS -= 1
             ACTIVE_PROCS[proc.pid] = proc
+            RUNS[proc.pid] = {
+                "pid": proc.pid,
+                "prompt": prompt[:120],  # never store the prompt beyond the cap
+                "cwd": run_cwd,
+                "resume": resume,
+                "started": started,
+                "status": "running",
+            }
         logger.info("chat spawn pid=%s resume=%s cwd=%s", proc.pid, resume, run_cwd)
 
         timed_out = {"v": False}
@@ -1599,6 +1615,7 @@ class StardriveHandler(BaseHTTPRequestHandler):
             code = proc.poll()
             with ACTIVE_LOCK:
                 ACTIVE_PROCS.pop(proc.pid, None)
+                RUNS.pop(proc.pid, None)
             logger.info("chat pid=%s exited code=%s", proc.pid, code)
             if not client_gone:
                 try:
@@ -1698,9 +1715,16 @@ class StardriveHandler(BaseHTTPRequestHandler):
                 self._send_json({"file": file_param, "content": content})
 
             elif path == "/api/chat/active":
+                # Snapshot count + the RUNS registry under the lock so the
+                # Orchestration board can enumerate/reconnect. Backward-compatible:
+                # "count" is the new documented key; "active" is retained so any
+                # pre-Orchestration caller keeps working; "max" is unchanged.
                 with ACTIVE_LOCK:
                     n = len(ACTIVE_PROCS)
-                self._send_json({"active": n, "max": MAX_CHAT_PROCS})
+                    runs = [dict(r) for r in RUNS.values()]
+                self._send_json(
+                    {"count": n, "active": n, "max": MAX_CHAT_PROCS, "runs": runs}
+                )
 
             else:
                 self._send_json({"error": "not found"}, status=404)
@@ -1887,7 +1911,7 @@ def load_usage_cache_from_disk():
 
 
 def main():
-    global STORE_DIR, ENABLE_RUN, RUN_TIMEOUT, TOKEN
+    global STORE_DIR, ENABLE_RUN, RUN_TIMEOUT, TOKEN, MAX_CHAT_PROCS
     parser = argparse.ArgumentParser(description="Stardrive indexer + server")
     parser.add_argument("--index-only", action="store_true", help="index once and exit")
     parser.add_argument("--serve", action="store_true", help="index if stale, then serve")
@@ -1904,6 +1928,12 @@ def main():
         type=int,
         default=DEFAULT_RUN_TIMEOUT,
         help="kill a spawned chat process after N seconds (default: 900)",
+    )
+    parser.add_argument(
+        "--max-runs",
+        type=int,
+        default=3,
+        help="max concurrent chat/run processes, 1..8 inclusive (default: 3)",
     )
     parser.add_argument(
         "--token",
@@ -1925,10 +1955,23 @@ def main():
         )
         sys.exit(1)
 
+    # Orchestration: --max-runs sets the concurrency cap. Hard cap 8 (spec);
+    # reject out-of-range at startup, before any indexing work. The atomic
+    # slot-reservation mechanism in _handle_chat is unchanged — only the value
+    # of MAX_CHAT_PROCS it compares against.
+    if args.max_runs < 1 or args.max_runs > 8:
+        print(
+            "invalid --max-runs %d: must be between 1 and 8 inclusive"
+            % args.max_runs,
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     STORE_DIR = os.path.expanduser(args.root)
     ENABLE_RUN = args.enable_run
     RUN_TIMEOUT = args.run_timeout
     TOKEN = args.token
+    MAX_CHAT_PROCS = args.max_runs
 
     configure_logging()
     logger.info(
