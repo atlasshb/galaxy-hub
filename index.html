@@ -723,6 +723,150 @@
     background:var(--panel);border:1px dashed var(--border);border-radius:10px;padding:13px 16px;
   }
 
+  /* ---------- Orchestration app (parallel runs board) ---------- */
+  .orch-layout{flex:1 1 auto;display:flex;flex-direction:column;min-height:0;overflow:hidden;}
+  .orch-launch{
+    flex:0 0 auto;max-height:48%;overflow-y:auto;padding:16px 18px;
+    border-bottom:1px solid var(--border);background:var(--panel);
+    display:flex;flex-direction:column;gap:12px;
+  }
+  .orch-run-banner{
+    background:var(--error-bg);border:1px solid var(--error);color:var(--error);
+    padding:8px 12px;border-radius:6px;font-size:12px;
+  }
+  .orch-launch-head{display:flex;flex-direction:column;gap:4px;}
+  .orch-launch-title{margin:0;font-size:15px;letter-spacing:.4px;color:var(--text);font-weight:800;}
+  .orch-launch-sub{margin:0;color:var(--muted);font-size:12px;line-height:1.5;max-width:74ch;}
+  .orch-launch-sub code{
+    font-family:ui-monospace,"Cascadia Code","SF Mono",Consolas,monospace;
+    background:rgba(110,118,129,.25);padding:1px 5px;border-radius:4px;font-size:11px;
+  }
+  .orch-rows{display:flex;flex-direction:column;gap:8px;}
+  .orch-row{
+    display:flex;gap:8px;align-items:stretch;background:var(--bg);
+    border:1px solid var(--border);border-radius:8px;padding:8px;
+  }
+  .orch-row-prompt{
+    flex:1 1 auto;min-width:0;resize:vertical;min-height:44px;
+    background:var(--panel);border:1px solid var(--border);color:var(--text);
+    border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;line-height:1.4;
+  }
+  .orch-row-prompt:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.25);}
+  .orch-row-side{flex:0 0 auto;display:flex;flex-direction:column;gap:6px;width:210px;max-width:44%;}
+  .orch-row-resume{
+    flex:1 1 auto;min-width:0;background:var(--panel);border:1px solid var(--border);color:var(--text);
+    border-radius:6px;padding:6px 8px;font-size:11px;font-family:ui-monospace,"Cascadia Code","SF Mono",Consolas,monospace;
+  }
+  .orch-row-resume:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.25);}
+  .orch-row-remove{
+    flex:0 0 auto;align-self:flex-end;background:var(--panel);border:1px solid var(--border);color:var(--muted);
+    border-radius:6px;padding:5px 10px;cursor:pointer;font-size:12px;line-height:1;
+  }
+  .orch-row-remove:hover:not(:disabled){border-color:var(--error);color:var(--error);}
+  .orch-row-remove:disabled{opacity:.4;cursor:default;}
+  .orch-addrow{
+    align-self:flex-start;background:var(--bg);border:1px solid var(--border);color:var(--text);
+    border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;
+  }
+  .orch-addrow:hover{border-color:var(--accent);color:var(--accent);}
+  .orch-shared{display:flex;gap:12px;flex-wrap:wrap;}
+  .orch-field{
+    display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--muted);
+    flex:1 1 200px;min-width:150px;
+  }
+  .orch-field select, .orch-field input[type=text]{
+    background:var(--panel);border:1px solid var(--border);color:var(--text);
+    border-radius:6px;padding:6px 8px;font-size:12px;font-family:inherit;
+  }
+  .orch-field select:focus, .orch-field input[type=text]:focus{
+    outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.25);
+  }
+  .orch-cwd-warn{
+    background:var(--error-tint);border:1px dashed var(--error);color:var(--error);
+    border-radius:8px;padding:8px 12px;font-size:11.5px;line-height:1.5;
+  }
+  .orch-launch-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  .orch-launch-btn{
+    background:var(--accent);color:var(--on-accent);border:none;border-radius:6px;
+    padding:9px 22px;cursor:pointer;font-weight:700;font-size:13px;
+  }
+  .orch-launch-btn:hover:not(:disabled){opacity:.92;}
+  .orch-launch-btn:disabled{opacity:.5;cursor:default;}
+  .orch-lanes{color:var(--muted);font-size:12px;}
+  .orch-board-wrap{flex:1 1 auto;display:flex;flex-direction:column;min-height:0;}
+  .orch-board-bar{
+    flex:0 0 auto;display:flex;align-items:center;gap:12px;
+    padding:8px 16px;border-bottom:1px solid var(--border);
+  }
+  .orch-board-title{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);font-weight:700;}
+  .orch-stopall{
+    margin-left:auto;background:var(--bg);border:1px solid var(--border);color:var(--text);
+    border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px;
+  }
+  .orch-stopall:hover{border-color:var(--error);color:var(--error);}
+  .orch-board{
+    flex:1 1 auto;overflow-y:auto;padding:16px;
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px;align-content:start;
+  }
+  .orch-empty{grid-column:1 / -1;color:var(--muted);font-size:13px;padding:14px 4px;}
+  .orch-card{
+    background:var(--panel);border:1px solid var(--border);border-radius:10px;
+    display:flex;flex-direction:column;min-width:0;overflow:hidden;
+  }
+  .orch-card[data-status="running"]{border-color:rgba(var(--accent2-rgb),.5);}
+  .orch-card[data-status="error"]{border-color:var(--error);}
+  .orch-card-head{
+    display:flex;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid var(--border);
+    background:var(--panel-2);
+  }
+  .orch-collapse{
+    flex:0 0 auto;background:none;border:none;color:var(--muted);cursor:pointer;
+    font-size:12px;line-height:1;padding:2px 4px;
+  }
+  .orch-collapse:hover{color:var(--accent);}
+  .orch-card-n{flex:0 0 auto;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;}
+  .orch-card-title{
+    flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-size:12.5px;font-weight:600;color:var(--text);
+  }
+  .orch-pill{
+    flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;
+    border:1px solid var(--border);border-radius:20px;padding:2px 10px;font-size:11px;
+    color:var(--muted);white-space:nowrap;
+  }
+  .orch-pill .tool-spinner{width:9px;height:9px;border-width:2px;}
+  .orch-pill-queued{color:var(--muted);}
+  .orch-pill-running{color:var(--accent2);border-color:rgba(var(--accent2-rgb),.5);}
+  .orch-pill-done{color:var(--ok);border-color:var(--ok);}
+  .orch-pill-error{color:var(--error);border-color:var(--error);}
+  .orch-pill-stopped{color:var(--text);border-color:var(--border);}
+  .orch-stop{
+    flex:0 0 auto;background:var(--error);color:#fff;border:none;border-radius:6px;
+    padding:4px 11px;cursor:pointer;font-size:11px;font-weight:700;
+  }
+  .orch-stop:hover:not(:disabled){opacity:.9;}
+  .orch-stop:disabled{opacity:.5;cursor:default;}
+  .orch-card-body{
+    flex:1 1 auto;min-height:70px;max-height:340px;overflow-y:auto;padding:12px;
+    display:flex;flex-direction:column;
+  }
+  .orch-card.collapsed .orch-card-body,.orch-card.collapsed .orch-card-foot{display:none;}
+  .orch-note{color:var(--muted);font-size:12px;line-height:1.55;padding:4px 2px;}
+  .orch-card-foot{
+    flex:0 0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    padding:8px 11px;border-top:1px solid var(--border);min-height:20px;
+  }
+  .orch-open{
+    color:var(--accent2);font-size:11.5px;cursor:pointer;text-decoration:underline;
+    border-radius:4px;
+  }
+  .orch-open:hover{color:var(--accent);}
+  .orch-foot-stats{flex:1 1 auto;min-width:0;}
+  .orch-foot-stats .turn-stats{padding:0;}
+  .orch-collapse:focus-visible,.orch-stop:focus-visible,.orch-open:focus-visible,
+  .orch-launch-btn:focus-visible,.orch-addrow:focus-visible,.orch-stopall:focus-visible,
+  .orch-row-remove:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
   /* ---------- reduced motion ---------- */
   @media (prefers-reduced-motion: reduce){
     *{scroll-behavior:auto !important;}
@@ -757,8 +901,12 @@
     .app-rail.open{transform:none;}
     .rail-item{flex-direction:row;justify-content:flex-start;gap:12px;font-size:13px;padding:11px 12px;text-align:left;}
     .rail-item .rail-glyph{width:20px;height:20px;}
-    .app-scrim{position:absolute;inset:0;background:rgba(0,0,0,.42);z-index:25;}
+    .app-scrim{display:none;position:absolute;inset:0;background:rgba(0,0,0,.42);z-index:25;}
     .app-scrim.show{display:block;}
+    /* Orchestration: single-column board + uncapped launch panel on narrow screens */
+    .orch-board{grid-template-columns:1fr;}
+    .orch-launch{max-height:none;}
+    .orch-row-side{width:150px;}
   }
   @media (max-width:760px){
     .slider-group{display:none;}
@@ -797,6 +945,7 @@
       <button class="rail-item" data-app="nodes"><svg class="rail-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 8 L17 6 M7.5 9.5 L11 15 M16.5 7.8 L12.8 14.4"></path><circle cx="6" cy="7" r="2.4" fill="currentColor" stroke="none"></circle><circle cx="18" cy="6" r="2" fill="currentColor" stroke="none"></circle><circle cx="12" cy="16.5" r="2.4" fill="currentColor" stroke="none"></circle></svg><span>Nodes</span></button>
       <button class="rail-item" data-app="vault"><svg class="rail-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"></rect><path d="M8 10.5 V7.5 a4 4 0 0 1 8 0 V10.5"></path><circle cx="12" cy="15.2" r="1.3" fill="currentColor" stroke="none"></circle></svg><span>Vault</span></button>
       <button class="rail-item" data-app="dashboard"><svg class="rail-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20 H20"></path><rect x="5.5" y="12" width="3.2" height="6" rx="0.6" fill="currentColor" stroke="none"></rect><rect x="10.4" y="8" width="3.2" height="10" rx="0.6" fill="currentColor" stroke="none"></rect><rect x="15.3" y="5" width="3.2" height="13" rx="0.6" fill="currentColor" stroke="none"></rect></svg><span>Dashboard</span></button>
+      <button class="rail-item" data-app="orchestration"><svg class="rail-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"></circle><path d="M8.6 8.6 a5 5 0 0 1 6.8 6.8"></path><path d="M6.1 6.1 a8.5 8.5 0 0 1 11.8 11.8"></path><path d="M4.6 19.4 l3.9 -3.9"></path></svg><span>Orchestration</span></button>
       <div class="rail-sep" aria-hidden="true"></div>
       <button class="rail-item" data-app="projects"><svg class="rail-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 6.5 a1.5 1.5 0 0 1 1.5 -1.5 H9 l2 2 h6.5 a1.5 1.5 0 0 1 1.5 1.5 V17 a1.5 1.5 0 0 1 -1.5 1.5 H5 A1.5 1.5 0 0 1 3.5 17 Z"></path></svg><span>Projects</span></button>
     </nav>
@@ -912,6 +1061,49 @@
         <span style="margin-left:auto;" id="fusionSummary"></span>
       </div>
       <div class="fusion-list" id="fusionList"></div>
+    </div>
+
+    <div class="view" id="viewOrchestration" role="region" aria-label="Orchestration">
+      <div class="orch-layout">
+        <div class="orch-launch" id="orchLaunch">
+          <div class="orch-run-banner" id="orchRunBanner" role="alert" style="display:none;"></div>
+          <div class="orch-launch-head">
+            <h2 class="orch-launch-title">Launch runs</h2>
+            <p class="orch-launch-sub">Fire several Claude Code runs at once and watch them stream side by side. Runs need the server started with <code>--enable-run</code>.</p>
+          </div>
+          <div class="orch-rows" id="orchRows"></div>
+          <button type="button" class="orch-addrow" id="orchAddRow">+ Add prompt</button>
+          <div class="orch-shared">
+            <label class="orch-field">cwd (pick project)
+              <select id="orchCwdSelect"><option value="">(pick project)</option></select>
+            </label>
+            <label class="orch-field">or type a path
+              <input type="text" id="orchCwdInput" placeholder="/path/to/project" autocomplete="off" spellcheck="false">
+            </label>
+            <label class="orch-field">permission mode
+              <select id="orchPermSelect">
+                <option value="default">default</option>
+                <option value="acceptEdits">acceptEdits</option>
+                <option value="bypassPermissions">bypassPermissions</option>
+              </select>
+            </label>
+          </div>
+          <div class="orch-cwd-warn" id="orchCwdWarn" role="status" style="display:none;"></div>
+          <div class="orch-launch-actions">
+            <button type="button" class="orch-launch-btn" id="orchLaunchBtn">Launch all</button>
+            <span class="orch-lanes" id="orchLanes"></span>
+          </div>
+        </div>
+        <div class="orch-board-wrap">
+          <div class="orch-board-bar">
+            <span class="orch-board-title">Runs</span>
+            <button type="button" class="orch-stopall" id="orchStopAll">Stop all running</button>
+          </div>
+          <div class="orch-board" id="orchBoard">
+            <div class="orch-empty">No runs yet — add prompts above and press Launch all.</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="view" id="viewDashboard" role="region" aria-label="Dashboard">
@@ -2324,32 +2516,38 @@
   }
 
   // ---------- Chat: send + SSE streaming ----------
-  function clearTranscriptPlaceholder(){
-    var c = $("chatTranscript");
+  // ---------- Shared live-stream renderer (chat + orchestration) ----------
+  // Every function below takes a render context (`ctx`) that carries the target
+  // transcript container (ctx.transcriptEl) + the per-run live-turn state. The
+  // chat app passes state.chat; each Orchestration run passes its own card ctx —
+  // so one stream renders into one container without forking the machinery.
+  function clearTranscriptPlaceholder(ctx){
+    var c = ctx.transcriptEl;
+    if(!c) return;
     var empty = c.querySelector(".stats");
     if(empty) c.innerHTML = "";
   }
-  function scrollTranscript(){
-    var c = $("chatTranscript");
-    c.scrollTop = c.scrollHeight;
+  function scrollTranscript(ctx){
+    var c = ctx.transcriptEl;
+    if(c) c.scrollTop = c.scrollHeight;
   }
 
-  function appendUserBubbleLive(text){
-    clearTranscriptPlaceholder();
+  function appendUserBubbleLive(ctx, text){
+    clearTranscriptPlaceholder(ctx);
     var shell = buildGroupShell("user", true);
     shell.col.appendChild(buildTextBubble(text, null, "user").bubble);
-    $("chatTranscript").appendChild(shell.row);
-    scrollTranscript();
+    ctx.transcriptEl.appendChild(shell.row);
+    scrollTranscript(ctx);
   }
 
-  function appendSystemLine(text){
-    clearTranscriptPlaceholder();
+  function appendSystemLine(ctx, text){
+    clearTranscriptPlaceholder(ctx);
     var div = document.createElement("div");
     div.className = "chat-system-line";
     div.textContent = text;
-    $("chatTranscript").appendChild(div);
-    scrollTranscript();
-    announce(text);  // system lines are discrete + important (errors, session start)
+    ctx.transcriptEl.appendChild(div);
+    scrollTranscript(ctx);
+    if(ctx.announce !== false) announce(text);  // discrete + important (errors, session start)
   }
 
   // ---------- Screen-reader announcer (streaming lifecycle) ----------
@@ -2370,101 +2568,107 @@
 
   // Typing indicator: 3 pulsing dots in an assistant bubble, from send until the
   // first assistant/tool/thinking event replaces it (via ensureLiveGroup).
-  function showTyping(){
-    removeTyping();
-    clearTranscriptPlaceholder();
+  function showTyping(ctx){
+    removeTyping(ctx);
+    clearTranscriptPlaceholder(ctx);
     var shell = buildGroupShell("assistant", true);
     var typing = document.createElement("div");
     typing.className = "typing";
     typing.innerHTML = "<span></span><span></span><span></span>";
     shell.col.appendChild(typing);
-    $("chatTranscript").appendChild(shell.row);
-    state.chat.typingEl = shell.row;
-    scrollTranscript();
-    _lastToolAnnounce = 0;
-    announce("Claude is responding…");
-  }
-  function removeTyping(){
-    if(state.chat.typingEl && state.chat.typingEl.parentNode){
-      state.chat.typingEl.parentNode.removeChild(state.chat.typingEl);
+    ctx.transcriptEl.appendChild(shell.row);
+    ctx.typingEl = shell.row;
+    scrollTranscript(ctx);
+    if(ctx.announce !== false){
+      _lastToolAnnounce = 0;
+      announce("Claude is responding…");
     }
-    state.chat.typingEl = null;
+  }
+  function removeTyping(ctx){
+    if(ctx.typingEl && ctx.typingEl.parentNode){
+      ctx.typingEl.parentNode.removeChild(ctx.typingEl);
+    }
+    ctx.typingEl = null;
   }
 
   // The current live assistant turn group (one avatar, many bubbles/chips).
-  function ensureLiveGroup(){
-    removeTyping();
-    if(!state.chat.liveCol){
-      clearTranscriptPlaceholder();
+  function ensureLiveGroup(ctx){
+    removeTyping(ctx);
+    if(!ctx.liveCol){
+      clearTranscriptPlaceholder(ctx);
       var shell = buildGroupShell("assistant", true);
-      $("chatTranscript").appendChild(shell.row);
-      state.chat.liveRow = shell.row;
-      state.chat.liveCol = shell.col;
-      state.chat.liveTextEl = null;
-      state.chat.liveTextRaw = "";
+      ctx.transcriptEl.appendChild(shell.row);
+      ctx.liveRow = shell.row;
+      ctx.liveCol = shell.col;
+      ctx.liveTextEl = null;
+      ctx.liveTextRaw = "";
     }
-    return state.chat.liveCol;
+    return ctx.liveCol;
   }
 
-  function liveAppendText(text){
+  function liveAppendText(ctx, text){
     if(!text) return;
-    var col = ensureLiveGroup();
-    if(!state.chat.liveTextEl){
+    var col = ensureLiveGroup(ctx);
+    if(!ctx.liveTextEl){
       var tb = buildTextBubble("", null, "assistant");
       col.appendChild(tb.bubble);
-      state.chat.liveTextEl = tb.md;
-      state.chat.liveTextRaw = "";
+      ctx.liveTextEl = tb.md;
+      ctx.liveTextRaw = "";
     }
-    state.chat.liveTextRaw += text;
-    state.chat.lastAssistantText = state.chat.liveTextRaw;
-    state.chat.liveTextEl.innerHTML = renderMarkdown(state.chat.liveTextRaw);
-    scrollTranscript();
+    ctx.liveTextRaw += text;
+    ctx.lastAssistantText = ctx.liveTextRaw;
+    ctx.liveTextEl.innerHTML = renderMarkdown(ctx.liveTextRaw);
+    scrollTranscript(ctx);
   }
 
-  function liveAppendThinking(text){
-    var col = ensureLiveGroup();
+  function liveAppendThinking(ctx, text){
+    var col = ensureLiveGroup(ctx);
     col.appendChild(buildThinkingRow(text));
-    state.chat.liveTextEl = null; state.chat.liveTextRaw = "";
-    scrollTranscript();
+    ctx.liveTextEl = null; ctx.liveTextRaw = "";
+    scrollTranscript(ctx);
   }
 
-  function liveAppendChip(block){
-    var col = ensureLiveGroup();
+  function liveAppendChip(ctx, block){
+    var col = ensureLiveGroup(ctx);
     var chip = buildToolChip({
       name: block.name, input: summarizeToolInput(block.input),
       result: null, isError: false, pending: true
     });
-    if(block.id){ chip.dataset.toolId = block.id; state.chat.toolChips[block.id] = chip; }
+    if(block.id){ chip.dataset.toolId = block.id; ctx.toolChips[block.id] = chip; }
     col.appendChild(chip);
-    announceTool(block.name);
-    state.chat.liveTextEl = null; state.chat.liveTextRaw = "";
-    scrollTranscript();
+    if(ctx.announce !== false) announceTool(block.name);
+    ctx.liveTextEl = null; ctx.liveTextRaw = "";
+    scrollTranscript(ctx);
   }
 
-  function liveResolveToolResult(block){
+  function liveResolveToolResult(ctx, block){
     var id = block.tool_use_id;
-    var chip = id ? state.chat.toolChips[id] : null;
+    var chip = id ? ctx.toolChips[id] : null;
     if(!chip) return;
     finishToolChip(chip, toolResultSnippet(block.content), !!block.is_error);
   }
 
-  function finalizeTurn(obj){
-    var col = state.chat.liveCol || ensureLiveGroup();
-    col.appendChild(buildTurnStats(obj));
-    scrollTranscript();
-    var ft = (state.chat.lastAssistantText || "").replace(/\s+/g, " ").trim();
-    if(ft.length > 600) ft = ft.slice(0, 599) + "…";
-    if(obj && (obj.is_error || (obj.subtype && obj.subtype !== "success"))){
-      announce("Response ended with error: " + (obj.subtype || "unknown") + ".");
-    } else {
-      announce("Response complete." + (ft ? " " + ft : ""));
+  function finalizeTurn(ctx, obj){
+    if(ctx.turnStatsInBody !== false){
+      var col = ctx.liveCol || ensureLiveGroup(ctx);
+      col.appendChild(buildTurnStats(obj));
+      scrollTranscript(ctx);
     }
-    state.chat.liveRow = null;
-    state.chat.liveCol = null;
-    state.chat.liveTextEl = null;
-    state.chat.liveTextRaw = "";
-    state.chat.lastAssistantText = "";
-    state.chat.toolChips = {};
+    if(ctx.announce !== false){
+      var ft = (ctx.lastAssistantText || "").replace(/\s+/g, " ").trim();
+      if(ft.length > 600) ft = ft.slice(0, 599) + "…";
+      if(obj && (obj.is_error || (obj.subtype && obj.subtype !== "success"))){
+        announce("Response ended with error: " + (obj.subtype || "unknown") + ".");
+      } else {
+        announce("Response complete." + (ft ? " " + ft : ""));
+      }
+    }
+    ctx.liveRow = null;
+    ctx.liveCol = null;
+    ctx.liveTextEl = null;
+    ctx.liveTextRaw = "";
+    ctx.lastAssistantText = "";
+    ctx.toolChips = {};
   }
 
   // Client-side summary matching the backend's tool_use input rule (for live
@@ -2533,54 +2737,58 @@
     state.chat.liveTextRaw = "";
     state.chat.lastAssistantText = "";
     state.chat.toolChips = {};
-    removeTyping();
+    removeTyping(state.chat);
+  }
+
+  // Shared stop primitive: signal a pid via /api/chat/stop. Reused by the chat
+  // composer's Stop and by every Orchestration run card's Stop button.
+  function postStop(pid){
+    return fetch("/api/chat/stop", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({pid: pid})
+    });
   }
 
   function stopChat(){
     if(!state.chat.streaming) return;
     if(state.chat.pid == null){
-      appendSystemLine("Cannot stop: no process id received from server yet.");
+      appendSystemLine(state.chat, "Cannot stop: no process id received from server yet.");
       return;
     }
-    var pid = state.chat.pid;
-    fetch("/api/chat/stop", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({pid: pid})
-    }).then(function(res){
+    postStop(state.chat.pid).then(function(res){
       if(!res.ok){
         return res.json().catch(function(){ return {}; }).then(function(j){
-          appendSystemLine("Stop failed: " + ((j && j.error) || ("HTTP " + res.status)));
+          appendSystemLine(state.chat, "Stop failed: " + ((j && j.error) || ("HTTP " + res.status)));
         });
       }
       // Success: the /api/chat stream ends on its own (stdout EOF -> stardrive_done),
       // which re-enables the composer.
       announce("Response stopped.");
-    }).catch(function(err){ appendSystemLine("Stop failed: " + err.message); });
+    }).catch(function(err){ appendSystemLine(state.chat, "Stop failed: " + err.message); });
   }
 
-  function handleChatEvent(obj){
+  // Event router — dispatches one parsed SSE object into ctx's container and
+  // delegates app-specific lifecycle to ctx hooks (onStarted/onInit/onResult/
+  // onDone). Chat and Orchestration share this verbatim.
+  function handleChatEvent(ctx, obj){
     if(!obj || !obj.type) return;
     if(obj.type === "stardrive_started"){
-      if(typeof obj.pid === "number") state.chat.pid = obj.pid;
+      if(typeof obj.pid === "number") ctx.pid = obj.pid;
+      if(ctx.onStarted) ctx.onStarted(obj.pid);
       return;
     }
     if(obj.type === "system" && obj.subtype === "init"){
-      if(state.chat.mode === "new" && obj.session_id){
-        state.chat.mode = "existing";
-        state.chat.selectedSessionId = obj.session_id;
-        hideNewSessionPanel();
-        appendSystemLine("session " + String(obj.session_id).slice(0, 8) + " started");
-      }
+      if(ctx.onInit) ctx.onInit(obj.session_id, obj);
       return;
     }
     if(obj.type === "assistant"){
       var blocks = (obj.message && Array.isArray(obj.message.content)) ? obj.message.content : [];
       blocks.forEach(function(b){
         if(!b || !b.type) return;
-        if(b.type === "text" && typeof b.text === "string"){ liveAppendText(b.text); }
-        else if(b.type === "thinking"){ liveAppendThinking(b.thinking || b.text || ""); }
-        else if(b.type === "tool_use"){ liveAppendChip(b); }
+        if(b.type === "text" && typeof b.text === "string"){ liveAppendText(ctx, b.text); }
+        else if(b.type === "thinking"){ liveAppendThinking(ctx, b.thinking || b.text || ""); }
+        else if(b.type === "tool_use"){ liveAppendChip(ctx, b); }
       });
       return;
     }
@@ -2588,34 +2796,34 @@
       // tool_result blocks arrive in user-type stream events; keyed by tool_use_id.
       var ublocks = (obj.message && Array.isArray(obj.message.content)) ? obj.message.content : [];
       ublocks.forEach(function(b){
-        if(b && b.type === "tool_result"){ liveResolveToolResult(b); }
+        if(b && b.type === "tool_result"){ liveResolveToolResult(ctx, b); }
       });
       return;
     }
     if(obj.type === "result"){
-      removeTyping();
-      finalizeTurn(obj);
+      removeTyping(ctx);
+      finalizeTurn(ctx, obj);
+      if(ctx.onResult) ctx.onResult(obj);
       return;
     }
     if(obj.type === "stardrive_done"){
-      removeTyping();
-      setComposerBusy(false);
-      state.chat.pid = null;
-      refreshSidebarAfterChat();
+      removeTyping(ctx);
+      ctx.pid = null;
+      if(ctx.onDone) ctx.onDone(obj.code);
       return;
     }
     // hook_started / hook_response / other system events: ignored silently
   }
 
-  function streamSSE(body){
+  function streamSSE(ctx, body){
     var reader = body.getReader();
     var decoder = new TextDecoder();
     var buffer = "";
     function pump(){
       return reader.read().then(function(result){
         if(result.done){
-          removeTyping();
-          setComposerBusy(false);
+          removeTyping(ctx);
+          if(ctx.onStreamEnd) ctx.onStreamEnd(null);
           return;
         }
         buffer += decoder.decode(result.value, {stream: true});
@@ -2627,7 +2835,7 @@
             if(line.indexOf("data:") === 0){
               var jsonStr = line.slice(5).trim();
               if(!jsonStr) return;
-              try{ handleChatEvent(JSON.parse(jsonStr)); }catch(e){ /* ignore malformed line */ }
+              try{ handleChatEvent(ctx, JSON.parse(jsonStr)); }catch(e){ /* ignore malformed line */ }
             }
           });
         });
@@ -2635,9 +2843,40 @@
       });
     }
     return pump().catch(function(err){
-      removeTyping();
-      appendSystemLine("Stream error: " + err.message);
-      setComposerBusy(false);
+      removeTyping(ctx);
+      appendSystemLine(ctx, "Stream error: " + err.message);
+      if(ctx.onStreamEnd) ctx.onStreamEnd(err);
+    });
+  }
+
+  // Shared launcher: POST /api/chat and pump the SSE into ctx's container.
+  // handlers.on403/on429/onError let each caller react to the pre-stream errors
+  // in its own idiom (chat banner vs. per-card status). Not forked — one path.
+  function startChatRun(ctx, payload, handlers){
+    handlers = handlers || {};
+    return fetch("/api/chat", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(payload)
+    }).then(function(res){
+      if(res.status === 403){
+        return res.json().catch(function(){ return {}; }).then(function(j){
+          if(handlers.on403) handlers.on403(j || {});
+          throw new Error("__handled__");
+        });
+      }
+      if(res.status === 429){
+        if(handlers.on429) handlers.on429();
+        throw new Error("__handled__");
+      }
+      if(!res.ok || !res.body){
+        return res.json().catch(function(){ return {}; }).then(function(j){
+          throw new Error((j && j.error) || ("HTTP " + res.status));
+        });
+      }
+      return streamSSE(ctx, res.body);
+    }).catch(function(err){
+      if(err.message !== "__handled__" && handlers.onError) handlers.onError(err);
     });
   }
 
@@ -2657,45 +2896,519 @@
       cwd: state.chat.newCwd || null,
       permissionMode: state.chat.newPermissionMode || "default"
     };
-    appendUserBubbleLive(text);
+    appendUserBubbleLive(state.chat, text);
     composerEl.value = "";
     closeSkillPopup();
     resetLiveState();
     setComposerBusy(true);
-    showTyping();
+    showTyping(state.chat);
 
-    fetch("/api/chat", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify(payload)
-    }).then(function(res){
-      if(res.status === 403){
-        return res.json().catch(function(){ return {}; }).then(function(j){
-          removeTyping();
-          showRunDisabledBanner(j.error);
-          setComposerBusy(false);
-          throw new Error("__handled__");
-        });
-      }
-      if(res.status === 429){
-        removeTyping();
-        appendSystemLine("Too many concurrent chat sessions (max 3) — try again shortly.");
+    startChatRun(state.chat, payload, {
+      on403: function(j){
+        removeTyping(state.chat);
+        showRunDisabledBanner(j.error);
         setComposerBusy(false);
-        throw new Error("__handled__");
+      },
+      on429: function(){
+        removeTyping(state.chat);
+        appendSystemLine(state.chat, "Too many concurrent chat sessions — try again shortly.");
+        setComposerBusy(false);
+      },
+      onError: function(err){
+        removeTyping(state.chat);
+        appendSystemLine(state.chat, "Error: " + err.message);
+        setComposerBusy(false);
       }
-      if(!res.ok || !res.body){
+    });
+  }
+
+  // ============================================================
+  // Orchestration — parallel runs board.
+  // Each run gets its own render context (transcriptEl = that card's body) and
+  // feeds startChatRun → streamSSE → handleChatEvent — the exact chat machinery,
+  // parameterized, never duplicated. A small local queue respects the server cap.
+  // ============================================================
+  function orchState(){
+    if(!state.orch){
+      state.orch = { max: 3, runs: [], queue: [], activeCount: 0, seq: 0,
+                     launchDisabled: false, rowsInit: false };
+    }
+    return state.orch;
+  }
+
+  function orchRowsContainer(){ return $("orchRows"); }
+
+  function makeOrchRow(){
+    var row = document.createElement("div");
+    row.className = "orch-row";
+    row.innerHTML =
+      '<textarea class="orch-row-prompt" rows="2" placeholder="Prompt for this run…" spellcheck="false"></textarea>' +
+      '<div class="orch-row-side">' +
+        '<input type="text" class="orch-row-resume" placeholder="resume=<session id> (optional)" autocomplete="off" spellcheck="false">' +
+        '<button type="button" class="orch-row-remove" aria-label="Remove this prompt row" title="Remove row">✕</button>' +
+      '</div>';
+    row.querySelector(".orch-row-prompt").addEventListener("input", updateOrchWarning);
+    row.querySelector(".orch-row-remove").addEventListener("click", function(){
+      var cont = orchRowsContainer();
+      if(cont.querySelectorAll(".orch-row").length <= 1) return;  // keep at least one row
+      row.parentNode.removeChild(row);
+      updateOrchRemoveButtons();
+      updateOrchWarning();
+    });
+    return row;
+  }
+
+  function addOrchRow(focus){
+    var cont = orchRowsContainer();
+    if(!cont) return null;
+    var row = makeOrchRow();
+    cont.appendChild(row);
+    updateOrchRemoveButtons();
+    if(focus){ var ta = row.querySelector(".orch-row-prompt"); if(ta) ta.focus(); }
+    return row;
+  }
+
+  function updateOrchRemoveButtons(){
+    var cont = orchRowsContainer();
+    if(!cont) return;
+    var rows = cont.querySelectorAll(".orch-row");
+    var only = rows.length <= 1;
+    rows.forEach(function(r){
+      var b = r.querySelector(".orch-row-remove");
+      if(b) b.disabled = only;
+    });
+  }
+
+  function orchEffectiveCwd(){
+    var sel = $("orchCwdSelect"), inp = $("orchCwdInput");
+    var v = (inp && inp.value.trim()) ? inp.value.trim() : (sel ? sel.value : "");
+    return v || "";
+  }
+
+  function updateOrchWarning(){
+    var warn = $("orchCwdWarn");
+    var cont = orchRowsContainer();
+    if(!warn || !cont) return;
+    var filled = 0;
+    cont.querySelectorAll(".orch-row-prompt").forEach(function(t){ if(t.value.trim()) filled++; });
+    if(filled >= 2){
+      var cwd = orchEffectiveCwd();
+      warn.textContent = "⚠ " + filled + " runs will share one working directory (" +
+        (cwd || "home") + "). Parallel edits to the same repo can collide — v1 has no " +
+        "isolation. Git-worktree isolation is a v2 opt-in.";
+      warn.style.display = "block";
+    } else {
+      warn.style.display = "none";
+    }
+  }
+
+  function populateOrchCwdOptions(){
+    var sel = $("orchCwdSelect");
+    if(!sel) return;
+    var cur = sel.value;
+    var html = '<option value="">(pick project)</option>';
+    state.projects.forEach(function(p){
+      html += '<option value="' + escapeHtml(p.dir) + '">' + escapeHtml(p.label || p.dir) + "</option>";
+    });
+    sel.innerHTML = html;
+    if(cur) sel.value = cur;
+  }
+
+  // ---- throttled screen-reader announcements (coalesce concurrent runs) ----
+  var _orchAnnLast = 0, _orchAnnT = null, _orchAnnMsg = null;
+  function announceOrch(msg){
+    _orchAnnMsg = msg;
+    if(_orchAnnT) return;  // one announcement already scheduled — it'll pick up the latest
+    var wait = Math.max(0, 1200 - (Date.now() - _orchAnnLast));
+    _orchAnnT = setTimeout(function(){
+      _orchAnnT = null; _orchAnnLast = Date.now();
+      if(_orchAnnMsg){ announce(_orchAnnMsg); _orchAnnMsg = null; }
+    }, wait);
+  }
+
+  function orchStatusText(status){
+    return status === "queued" ? "queued"
+      : status === "running" ? "running"
+      : status === "done" ? "done ✓"
+      : status === "error" ? "error ✕"
+      : status === "stopped" ? "stopped" : status;
+  }
+
+  function setRunStatus(run, status){
+    run.status = status;
+    if(run.el) run.el.setAttribute("data-status", status);
+    var pill = run.pillEl;
+    if(pill){
+      pill.className = "orch-pill orch-pill-" + status;
+      var spin = (status === "running") ? '<span class="tool-spinner" aria-hidden="true"></span> ' : "";
+      pill.innerHTML = spin + '<span class="orch-pill-text">' + escapeHtml(orchStatusText(status)) + "</span>";
+    }
+    if(run.stopBtn){
+      var running = (status === "running");
+      run.stopBtn.style.display = running ? "" : "none";
+      run.stopBtn.disabled = !running || (run.pid == null && !run.reconnected);
+    }
+  }
+
+  function orchCardTemplate(run){
+    var card = document.createElement("div");
+    card.className = "orch-card";
+    card.setAttribute("role", "group");
+    card.setAttribute("aria-label", "Run " + run.n + ": " + run.snippet);
+    card.setAttribute("data-status", run.status);
+
+    var head = document.createElement("div");
+    head.className = "orch-card-head";
+    head.innerHTML =
+      '<button type="button" class="orch-collapse" aria-expanded="true" aria-label="Collapse run ' + run.n + '">▾</button>' +
+      '<span class="orch-card-n">#' + run.n + '</span>' +
+      '<span class="orch-card-title"></span>' +
+      '<span class="orch-pill" aria-live="off"></span>' +
+      '<button type="button" class="orch-stop" style="display:none;">Stop</button>';
+    var body = document.createElement("div");
+    body.className = "orch-card-body";
+    var foot = document.createElement("div");
+    foot.className = "orch-card-foot";
+    foot.innerHTML =
+      '<span class="orch-open" style="display:none;" role="button" tabindex="0">Open in Stardrive</span>' +
+      '<span class="orch-foot-stats"></span>';
+
+    card.appendChild(head);
+    card.appendChild(body);
+    card.appendChild(foot);
+
+    run.el = card;
+    run.bodyEl = body;
+    run.pillEl = head.querySelector(".orch-pill");
+    run.stopBtn = head.querySelector(".orch-stop");
+    run.collapseBtn = head.querySelector(".orch-collapse");
+    run.openEl = foot.querySelector(".orch-open");
+    run.footStatsEl = foot.querySelector(".orch-foot-stats");
+    head.querySelector(".orch-card-title").textContent = run.snippet;
+    // a lightweight default ctx so appendSystemLine works before/without a stream
+    run.ctx = { transcriptEl: body, announce: false };
+
+    run.collapseBtn.addEventListener("click", function(){
+      var collapsed = card.classList.toggle("collapsed");
+      run.collapseBtn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      run.collapseBtn.textContent = collapsed ? "▸" : "▾";
+    });
+    run.stopBtn.addEventListener("click", function(){ stopOrchRun(run); });
+    run.openEl.addEventListener("click", function(){ openRunInStardrive(run); });
+    run.openEl.addEventListener("keydown", function(ev){
+      if(ev.key === "Enter" || ev.key === " "){ ev.preventDefault(); openRunInStardrive(run); }
+    });
+    return card;
+  }
+
+  function makeRunCtx(run){
+    return {
+      transcriptEl: run.bodyEl,
+      liveRow: null, liveCol: null, liveTextEl: null, liveTextRaw: "",
+      lastAssistantText: "", toolChips: {}, typingEl: null, pid: null,
+      announce: false,          // orchestration announces via its throttled channel
+      turnStatsInBody: false,   // turn-stats render in the card footer instead
+      onStarted: function(pid){
+        run.pid = pid;
+        if(run.stopBtn && run.status === "running") run.stopBtn.disabled = false;
+      },
+      onInit: function(sessionId){
+        if(sessionId && !run.sessionId){
+          run.sessionId = sessionId;
+          if(run.openEl) run.openEl.style.display = "";
+        }
+      },
+      onResult: function(obj){
+        run.sawResult = true;
+        var isErr = obj && (obj.is_error || (obj.subtype && obj.subtype !== "success"));
+        if(run.footStatsEl){
+          run.footStatsEl.innerHTML = "";
+          run.footStatsEl.appendChild(buildTurnStats(obj));
+        }
+        setRunStatus(run, isErr ? "error" : "done");
+      },
+      onDone: function(code){ completeOrchRun(run, code); },
+      onStreamEnd: function(){ completeOrchRun(run, null); }
+    };
+  }
+
+  function startOrchRun(run){
+    var o = orchState();
+    run.finished = false;
+    run.sawResult = false;
+    run.stopRequested = false;
+    setRunStatus(run, "running");
+    o.activeCount++; run.counted = true;
+    var ctx = makeRunCtx(run);
+    run.ctx = ctx;
+    run.bodyEl.innerHTML = "";
+    showTyping(ctx);
+    var payload = { prompt: run.prompt, resume: run.resume || null,
+                    cwd: run.cwd || null, permissionMode: run.perm || "default" };
+    startChatRun(ctx, payload, {
+      on403: function(j){
+        removeTyping(ctx);
+        if(run.counted){ o.activeCount = Math.max(0, o.activeCount - 1); run.counted = false; }
+        run.finished = true;
+        setRunStatus(run, "error");
+        run.bodyEl.innerHTML = '<div class="orch-note">' +
+          escapeHtml((j && j.error) || "Run disabled — start the server with --enable-run.") + "</div>";
+        showOrchRunDisabled((j && j.error) || null);
+        failOrchQueue((j && j.error) || "Run disabled — start with --enable-run.");
+      },
+      on429: function(){
+        removeTyping(ctx);
+        if(run.counted){ o.activeCount = Math.max(0, o.activeCount - 1); run.counted = false; }
+        setRunStatus(run, "queued");
+        run.bodyEl.innerHTML = '<div class="orch-note">Waiting for a free lane (server busy)…</div>';
+        o.queue.unshift(run);            // re-queue at the front, retry shortly
+        setTimeout(pumpOrchQueue, 1400);
+        updateOrchHomeStat();
+      },
+      onError: function(err){
+        removeTyping(ctx);
+        appendSystemLine(ctx, "Error: " + err.message);
+        completeOrchRun(run, 1);
+      }
+    });
+    updateOrchHomeStat();
+  }
+
+  function completeOrchRun(run, code){
+    if(run.finished) return;
+    run.finished = true;
+    var o = orchState();
+    if(run.counted){ o.activeCount = Math.max(0, o.activeCount - 1); run.counted = false; }
+    var finalStatus;
+    if(run.stopRequested) finalStatus = "stopped";
+    else if(run.sawResult) finalStatus = (run.status === "error") ? "error" : "done";
+    else finalStatus = (code === 0 || code == null) ? "done" : "error";
+    setRunStatus(run, finalStatus);
+    var word = finalStatus === "done" ? "complete" : finalStatus === "error" ? "failed" : finalStatus;
+    announceOrch("Run " + run.n + " " + word + ".");
+    scheduleOrchIndexRefresh();
+    pumpOrchQueue();
+    updateOrchHomeStat();
+  }
+
+  function pumpOrchQueue(){
+    var o = orchState();
+    while(o.activeCount < o.max && o.queue.length){
+      var run = o.queue.shift();
+      if(run.finished || run.status === "stopped") continue;
+      startOrchRun(run);
+    }
+    updateOrchHomeStat();
+  }
+
+  function failOrchQueue(msg){
+    var o = orchState();
+    while(o.queue.length){
+      var run = o.queue.shift();
+      run.finished = true;
+      setRunStatus(run, "error");
+      run.bodyEl.innerHTML = '<div class="orch-note">' + escapeHtml(msg) + "</div>";
+    }
+    updateOrchHomeStat();
+  }
+
+  function stopOrchRun(run){
+    if(run.status !== "running") return;
+    if(run.pid == null){
+      appendSystemLine(run.ctx, "Cannot stop yet — no process id from the server.");
+      return;
+    }
+    run.stopRequested = true;
+    run.stopBtn.disabled = true;
+    postStop(run.pid).then(function(res){
+      if(!res.ok){
         return res.json().catch(function(){ return {}; }).then(function(j){
-          throw new Error((j && j.error) || ("HTTP " + res.status));
+          run.stopRequested = false;
+          if(run.status === "running") run.stopBtn.disabled = false;
+          appendSystemLine(run.ctx, "Stop failed: " + ((j && j.error) || ("HTTP " + res.status)));
         });
       }
-      return streamSSE(res.body);
-    }).catch(function(err){
-      if(err.message !== "__handled__"){
-        removeTyping();
-        appendSystemLine("Error: " + err.message);
+      announceOrch("Stopping run " + run.n + ".");
+      // Streamed runs end via stdout EOF -> stardrive_done -> completeOrchRun("stopped").
+      // Reconnect cards have no live stream, so reflect the stop immediately.
+      if(run.reconnected && !run.counted){
+        run.finished = true;
+        setRunStatus(run, "stopped");
+        scheduleOrchIndexRefresh();
+        updateOrchHomeStat();
       }
-      setComposerBusy(false);
+    }).catch(function(err){
+      run.stopRequested = false;
+      if(run.status === "running") run.stopBtn.disabled = false;
+      appendSystemLine(run.ctx, "Stop failed: " + err.message);
     });
+  }
+
+  function stopAllOrch(){
+    orchState().runs.forEach(function(run){ if(run.status === "running") stopOrchRun(run); });
+  }
+
+  function openRunInStardrive(run){
+    if(!run.sessionId) return;
+    navigate("stardrive", "chat", {focus:true});
+    var sess = null;
+    if(state.data && Array.isArray(state.data.sessions)){
+      for(var i = 0; i < state.data.sessions.length; i++){
+        if(state.data.sessions[i].id === run.sessionId){ sess = state.data.sessions[i]; break; }
+      }
+    }
+    if(sess){
+      selectChatSession(sess.id, sess.project);
+    } else {
+      // Not in the index yet (freshly created) — set up a resume and hint the user.
+      state.chat.mode = "existing";
+      state.chat.selectedSessionId = run.sessionId;
+      hideNewSessionPanel();
+      renderChatSidebar();
+      $("chatTranscript").innerHTML = '<div class="stats" style="padding:14px;">Resuming run — session ' +
+        escapeHtml(String(run.sessionId).slice(0, 8)) +
+        '. Send a message to continue (full transcript appears after the next index refresh).</div>';
+    }
+  }
+
+  var _orchRefreshT = null;
+  function scheduleOrchIndexRefresh(){
+    clearTimeout(_orchRefreshT);
+    _orchRefreshT = setTimeout(function(){ loadData(); loadProjects(); }, 1200);
+  }
+
+  function launchAll(){
+    var o = orchState();
+    var cont = orchRowsContainer();
+    if(!cont) return;
+    if(o.launchDisabled){ return; }
+    var cwd = orchEffectiveCwd();
+    var perm = ($("orchPermSelect") && $("orchPermSelect").value) || "default";
+    var prompts = [];
+    cont.querySelectorAll(".orch-row").forEach(function(r){
+      var ta = r.querySelector(".orch-row-prompt");
+      var res = r.querySelector(".orch-row-resume");
+      var p = ta ? ta.value.trim() : "";
+      if(!p) return;
+      var resume = res ? res.value.trim() : "";
+      resume = resume.replace(/^resume\s*=\s*/i, "").trim();   // accept "resume=<id>" or bare id
+      prompts.push({ prompt: p, resume: resume || null });
+    });
+    if(!prompts.length){ announce("Enter at least one prompt to launch."); return; }
+
+    var board = $("orchBoard");
+    var hint = board.querySelector(".orch-empty");
+    if(hint) hint.parentNode.removeChild(hint);
+
+    prompts.forEach(function(pp){
+      o.seq++;
+      var run = {
+        n: o.seq, prompt: pp.prompt,
+        snippet: truncate(pp.prompt.replace(/\s+/g, " ").trim(), 90),
+        resume: pp.resume, cwd: cwd || null, perm: perm,
+        status: "queued", pid: null, sessionId: null, counted: false,
+        finished: false, sawResult: false, stopRequested: false, reconnected: false
+      };
+      var card = orchCardTemplate(run);
+      setRunStatus(run, "queued");
+      run.bodyEl.innerHTML = '<div class="orch-note">Queued — waiting for a free lane.</div>';
+      o.runs.push(run);
+      o.queue.push(run);
+      board.appendChild(card);
+    });
+    announceOrch(prompts.length + " run" + (prompts.length === 1 ? "" : "s") + " launched.");
+    pumpOrchQueue();
+  }
+
+  function showOrchRunDisabled(msg){
+    orchState().launchDisabled = true;
+    var banner = $("orchRunBanner");
+    if(banner){
+      banner.textContent = msg || "Run disabled — start the server with --enable-run.";
+      banner.style.display = "block";
+    }
+    var btn = $("orchLaunchBtn");
+    if(btn) btn.disabled = true;
+  }
+
+  function addReconnectCard(meta){
+    var o = orchState();
+    o.seq++;
+    var run = {
+      n: o.seq, prompt: meta.prompt || "",
+      snippet: truncate((meta.prompt || "(no prompt)").replace(/\s+/g, " ").trim(), 90),
+      resume: meta.resume || null, cwd: meta.cwd || null, perm: "default",
+      status: (meta.status === "running") ? "running" : (meta.status || "running"),
+      pid: (typeof meta.pid === "number") ? meta.pid : null,
+      sessionId: null, counted: false, finished: false, sawResult: false,
+      stopRequested: false, reconnected: true
+    };
+    var card = orchCardTemplate(run);
+    setRunStatus(run, run.status);
+    if(run.stopBtn && run.pid != null && run.status === "running") run.stopBtn.disabled = false;
+    run.bodyEl.innerHTML = '<div class="orch-note">Reconnected after reload — this run is still alive ' +
+      'on the server. Live output from before the reload can\'t be replayed (missed SSE); it would ' +
+      'resume on the next event. Stop still works via its pid.' +
+      (meta.started ? " Started " + escapeHtml(fmtRelative(meta.started)) + "." : "") + "</div>";
+    var board = $("orchBoard");
+    var hint = board.querySelector(".orch-empty");
+    if(hint) hint.parentNode.removeChild(hint);
+    board.appendChild(card);
+    o.runs.push(run);
+  }
+
+  function orchActiveCount(){
+    if(!state.orch) return 0;
+    var n = 0;
+    state.orch.runs.forEach(function(r){ if(r.status === "running" || r.status === "queued") n++; });
+    return n;
+  }
+
+  function orchHomeStat(){
+    var o = state.orch;
+    var active = orchActiveCount();
+    var max = (o && o.max) ? o.max : 3;
+    if(active > 0) return active + " run" + (active === 1 ? "" : "s") + " active";
+    return "run " + max + " at once";
+  }
+
+  function updateOrchHomeStat(){
+    var lanes = $("orchLanes");
+    if(lanes){
+      var mx = orchState().max;
+      lanes.textContent = "up to " + mx + " run" + (mx === 1 ? "" : "s") + " at once · " +
+        orchActiveCount() + " active";
+    }
+    renderHome();
+  }
+
+  // Called on every navigation into the Orchestration app: seed rows the first
+  // time, learn the server cap, and reconnect cards for any live runs we don't
+  // already track (survives a full page reload).
+  function onOrchOpen(){
+    var o = orchState();
+    populateOrchCwdOptions();
+    if(!o.rowsInit){
+      var cont = orchRowsContainer();
+      if(cont && !cont.querySelector(".orch-row")){ addOrchRow(); addOrchRow(); }
+      o.rowsInit = true;
+      updateOrchRemoveButtons();
+      updateOrchWarning();
+    }
+    apiGet("/api/chat/active").then(function(j){
+      if(j && typeof j.max === "number" && j.max > 0) o.max = j.max;
+      var runs = (j && Array.isArray(j.runs)) ? j.runs : [];
+      var known = {};
+      o.runs.forEach(function(r){ if(r.pid != null) known[r.pid] = true; });
+      var added = 0;
+      runs.forEach(function(meta){
+        if(meta.pid != null && known[meta.pid]) return;  // already tracked locally
+        addReconnectCard(meta);
+        added++;
+      });
+      if(added) announceOrch(added + " active run" + (added === 1 ? "" : "s") + " reconnected.");
+      updateOrchHomeStat();
+    }).catch(function(){ updateOrchHomeStat(); });
   }
 
   // ---------- Projects ----------
@@ -2704,6 +3417,7 @@
       state.projects = Array.isArray(list) ? list : [];
       renderProjects();
       populateNewSessionCwdOptions();
+      populateOrchCwdOptions();
       renderHome();
     }).catch(function(err){
       state.projects = [];
@@ -3435,6 +4149,7 @@
     nodes:     { label:"Nodes",     views:["graph","tiles","tree","fusion"], def:"graph",    cont:null },
     vault:     { label:"Vault",     views:["memory","skills"],               def:"memory",   cont:null },
     dashboard: { label:"Dashboard", views:[],                                def:null,       cont:"viewDashboard" },
+    orchestration: { label:"Orchestration", views:[],                        def:null,       cont:"viewOrchestration" },
     projects:  { label:"Projects",  views:["projects"],                      def:"projects", cont:null }
   };
   var VIEW_TO_APP = { chat:"stardrive", graph:"nodes", tiles:"nodes", tree:"nodes",
@@ -3447,6 +4162,7 @@
     nodes:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 8 L17 6 M7.5 9.5 L11 15 M16.5 7.8 L12.8 14.4"/><circle cx="6" cy="7" r="2.4" fill="currentColor" stroke="none"/><circle cx="18" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="12" cy="16.5" r="2.4" fill="currentColor" stroke="none"/></svg>',
     vault:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5 V7.5 a4 4 0 0 1 8 0 V10.5"/><circle cx="12" cy="15.2" r="1.3" fill="currentColor" stroke="none"/></svg>',
     dashboard:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20 H20"/><rect x="5.5" y="12" width="3.2" height="6" rx="0.6" fill="currentColor" stroke="none"/><rect x="10.4" y="8" width="3.2" height="10" rx="0.6" fill="currentColor" stroke="none"/><rect x="15.3" y="5" width="3.2" height="13" rx="0.6" fill="currentColor" stroke="none"/></svg>',
+    orchestration:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M8.6 8.6 a5 5 0 0 1 6.8 6.8"/><path d="M6.1 6.1 a8.5 8.5 0 0 1 11.8 11.8"/><path d="M4.6 19.4 l3.9 -3.9"/></svg>',
     projects:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 6.5 a1.5 1.5 0 0 1 1.5 -1.5 H9 l2 2 h6.5 a1.5 1.5 0 0 1 1.5 1.5 V17 a1.5 1.5 0 0 1 -1.5 1.5 H5 A1.5 1.5 0 0 1 3.5 17 Z"/></svg>'
   };
 
@@ -3531,6 +4247,7 @@
       // Fetch once on open; re-render at the now-visible width if already loaded.
       if(state.usageLoaded) renderDashboard(); else loadUsage();
     }
+    if(app === "orchestration"){ onOrchOpen(); }
 
     updateSubbar(app, view);
 
@@ -3651,6 +4368,7 @@
       { app:"nodes",     desc:"See the shape of your work — the session galaxy.",  stat: plural(nClusters, "cluster") },
       { app:"vault",     desc:"Everything you have saved — memory and skills.",    stat: plural(nSkills, "skill") + " · " + plural(nMemory, "memory file") },
       { app:"dashboard", desc:"Usage, activity and cost analytics.",               stat: dashStat },
+      { app:"orchestration", desc:"Launch parallel Claude Code runs and watch them stream side by side.", stat: orchHomeStat() },
       { app:"projects",  desc:"Filter your sessions by the project they belong to.", stat: plural(nProjects, "project") }
     ];
     grid.innerHTML = cards.map(function(c){
@@ -3696,6 +4414,22 @@
   // ---------- Chat wiring ----------
   composerEl = $("chatComposer");
 
+  // The chat app is just another stream target: state.chat is its render ctx.
+  // transcriptEl + lifecycle hooks are what startChatRun/streamSSE/handleChatEvent
+  // read — the same fields an Orchestration run ctx carries.
+  state.chat.transcriptEl = $("chatTranscript");
+  state.chat.announce = true;
+  state.chat.onInit = function(sessionId){
+    if(state.chat.mode === "new" && sessionId){
+      state.chat.mode = "existing";
+      state.chat.selectedSessionId = sessionId;
+      hideNewSessionPanel();
+      appendSystemLine(state.chat, "session " + String(sessionId).slice(0, 8) + " started");
+    }
+  };
+  state.chat.onDone = function(){ setComposerBusy(false); refreshSidebarAfterChat(); };
+  state.chat.onStreamEnd = function(){ setComposerBusy(false); };
+
   $("chatSearchInput").addEventListener("input", function(){
     state.chat.sidebarFilter = $("chatSearchInput").value;
     renderChatSidebar();
@@ -3723,6 +4457,26 @@
   $("newSessionPermSelect").addEventListener("change", function(){
     state.chat.newPermissionMode = $("newSessionPermSelect").value;
   });
+
+  // ---------- Orchestration wiring ----------
+  (function(){
+    var addBtn = $("orchAddRow");
+    if(addBtn) addBtn.addEventListener("click", function(){ addOrchRow(true); });
+    var launchBtn = $("orchLaunchBtn");
+    if(launchBtn) launchBtn.addEventListener("click", launchAll);
+    var stopAll = $("orchStopAll");
+    if(stopAll) stopAll.addEventListener("click", stopAllOrch);
+    var cwdSel = $("orchCwdSelect");
+    if(cwdSel) cwdSel.addEventListener("change", function(){
+      var inp = $("orchCwdInput"); if(inp) inp.value = "";
+      updateOrchWarning();
+    });
+    var cwdInp = $("orchCwdInput");
+    if(cwdInp) cwdInp.addEventListener("input", function(){
+      var sel = $("orchCwdSelect"); if(sel) sel.value = "";
+      updateOrchWarning();
+    });
+  })();
 
   $("chatSendBtn").addEventListener("click", onSendOrStop);
 
@@ -3900,6 +4654,7 @@
       ["vault", "memory", "Vault · Memory"],
       ["vault", "skills", "Vault · Skills"],
       ["dashboard", null, "Dashboard"],
+      ["orchestration", null, "Orchestration"],
       ["projects", null, "Projects"]
     ];
     dests.forEach(function(t){
