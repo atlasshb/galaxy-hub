@@ -898,6 +898,17 @@ def top_terms(vec, k=5):
     return [t for t, _ in ordered[:k]]
 
 
+def top_terms_weighted(vec, k=25):
+    """v3.1: top-k TF-IDF terms as [term, weight] pairs — weight is the
+    L2-normalized vector value (same vec top_terms reads), rounded to 3
+    decimals. Same sort key as top_terms (weight desc, alphabetical tie-break)
+    so the first 5 pairs are consistent with the `terms` field."""
+    if not vec:
+        return []
+    ordered = sorted(vec.items(), key=lambda kv: (-kv[1], kv[0]))
+    return [[t, round(w, 3)] for t, w in ordered[:k]]
+
+
 # ---------------------------------------------------------------------------
 # Full index build -> data.json
 # ---------------------------------------------------------------------------
@@ -974,6 +985,7 @@ def run_index():
                 "kb": sess["kb"],
                 "cluster": cluster_of.get(idx, 0),
                 "terms": top_terms(vectors[idx], 5),
+                "tw": top_terms_weighted(vectors[idx], 25),
             }
         )
 
