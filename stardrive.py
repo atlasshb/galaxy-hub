@@ -22,7 +22,7 @@ import sys
 import threading
 import time
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit, parse_qs
 
@@ -52,6 +52,9 @@ MAX_DOC_CHARS = 6000
 TITLE_MAX_LEN = 70
 STALE_SECONDS = 6 * 3600
 LOG_TRUNCATE_BYTES = 1024 * 1024
+
+# Dashboard: /api/usage cache window (day buckets, ascending, only active days)
+USAGE_LOOKBACK_DAYS = 120
 
 # v2: chat/transcript/skills/memory
 TRANSCRIPT_MAX_MSGS = 500
@@ -86,6 +89,7 @@ def is_safe_name(s):
 
 _STATE_LOCK = threading.Lock()
 PROJECTS_CACHE = []  # list of {dir,label,sessions,lastActivity}, rebuilt by run_index()
+USAGE_CACHE = {}  # Dashboard /api/usage aggregate, rebuilt by run_index() (see compute_usage)
 
 ACTIVE_LOCK = threading.Lock()
 ACTIVE_PROCS = {}  # pid -> subprocess.Popen, chat children currently streaming
@@ -204,6 +208,14 @@ def parse_session_file(path, session_id, override_title=None):
     bad_lines = 0
     total_lines = 0
     bytes_read = 0
+    # Dashboard /api/usage: cost/tokens from stored type=="result" lines, if any
+    # (total_cost_usd, usage.input_tokens/output_tokens). Most stores never
+    # write these — stay None so the caller can omit them. Later result lines
+    # overwrite earlier ones per-field, so a session with several result
+    # events (e.g. multiple turns) ends up with the last-seen value of each.
+    cost_usd = None
+    tokens_in = None
+    tokens_out = None
 
     with open(path, "r", encoding="utf-8-sig", errors="replace") as f:
         while True:
@@ -258,6 +270,19 @@ def parse_session_file(path, session_id, override_title=None):
                 if isinstance(s, str) and s.strip():
                     summary_title = clean_text(s)
 
+            if t == "result":
+                c = d.get("total_cost_usd")
+                if isinstance(c, (int, float)) and not isinstance(c, bool):
+                    cost_usd = float(c)
+                usage_blk = d.get("usage")
+                if isinstance(usage_blk, dict):
+                    ti = usage_blk.get("input_tokens")
+                    if isinstance(ti, int) and not isinstance(ti, bool):
+                        tokens_in = ti
+                    to = usage_blk.get("output_tokens")
+                    if isinstance(to, int) and not isinstance(to, bool):
+                        tokens_out = to
+
             if t in ("user", "assistant"):
                 msgs += 1
 
@@ -300,6 +325,9 @@ def parse_session_file(path, session_id, override_title=None):
         "mtime": mtime,
         "doc": doc,
         "bad_lines": bad_lines,
+        "cost_usd": cost_usd,
+        "tokens_in": tokens_in,
+        "tokens_out": tokens_out,
     }
 
 
@@ -766,6 +794,129 @@ def get_projects_cache():
 
 
 # ---------------------------------------------------------------------------
+# Dashboard: /api/usage cache — computed once per index, not per-request
+# (same rationale as compute_projects/PROJECTS_CACHE above).
+# ---------------------------------------------------------------------------
+
+
+def compute_usage(ordered_sessions, clusters, cost_rows=None):
+    """Aggregate the Dashboard's /api/usage payload from already-parsed session
+    records (the same objects that back data.json's "sessions" list — mtime,
+    msgs, kb, project, projectLabel, cluster) plus `clusters` (id/label/size).
+    No extra store reads: totals/byDay/byProject/byCluster are pure reductions
+    over data already in memory.
+
+    cost_rows, when given, is a list aligned by index to ordered_sessions of
+    (cost_usd, tokens_in, tokens_out) tuples captured by parse_session_file
+    from stored type=="result" lines; any element may be None. When cost_rows
+    is None (e.g. warming the cache from an existing data.json at startup,
+    which does not persist per-session cost/tokens), or when no session in
+    the store ever carried cost/token data, the "cost"/"tokens" keys are
+    omitted entirely rather than emitted as null/zero."""
+    total_msgs = 0
+    total_kb = 0
+    by_day = {}  # date -> {"sessions":N,"messages":N}
+    proj_map = {}  # dir -> {"labels":Counter,"sessions":N,"messages":N,"kb":N}
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=USAGE_LOOKBACK_DAYS)).strftime(
+        "%Y-%m-%d"
+    )
+
+    for s in ordered_sessions:
+        total_msgs += s["msgs"]
+        total_kb += s["kb"]
+
+        date = s["mtime"][:10]
+        if date >= cutoff:
+            dinfo = by_day.setdefault(date, {"sessions": 0, "messages": 0})
+            dinfo["sessions"] += 1
+            dinfo["messages"] += s["msgs"]
+
+        pinfo = proj_map.setdefault(
+            s["project"], {"labels": Counter(), "sessions": 0, "messages": 0, "kb": 0}
+        )
+        pinfo["labels"][s["projectLabel"]] += 1
+        pinfo["sessions"] += 1
+        pinfo["messages"] += s["msgs"]
+        pinfo["kb"] += s["kb"]
+
+    by_day_list = [
+        {"date": d, "sessions": v["sessions"], "messages": v["messages"]}
+        for d, v in sorted(by_day.items())
+    ]
+
+    by_project_list = []
+    for d, info in proj_map.items():
+        label = info["labels"].most_common(1)[0][0] if info["labels"] else d
+        by_project_list.append(
+            {
+                "dir": d,
+                "label": label,
+                "sessions": info["sessions"],
+                "messages": info["messages"],
+                "kb": info["kb"],
+            }
+        )
+    by_project_list.sort(key=lambda p: p["sessions"], reverse=True)
+
+    by_cluster_list = [
+        {"cluster": c["id"], "label": c["label"], "size": c["size"]} for c in clusters
+    ]
+
+    usage = {
+        "totals": {
+            "sessions": len(ordered_sessions),
+            "messages": total_msgs,
+            "kb": total_kb,
+            "clusters": len(clusters),
+            "projects": len(proj_map),
+        },
+        "byDay": by_day_list,
+        "byProject": by_project_list,
+        "byCluster": by_cluster_list,
+    }
+
+    if cost_rows:
+        cost_by_day = {}
+        total_cost = 0.0
+        have_cost = False
+        total_in = 0
+        total_out = 0
+        have_tokens = False
+        for s, row in zip(ordered_sessions, cost_rows):
+            cost_val, tin, tout = row
+            if cost_val is not None:
+                have_cost = True
+                total_cost += cost_val
+                date = s["mtime"][:10]
+                if date >= cutoff:
+                    cost_by_day[date] = cost_by_day.get(date, 0.0) + cost_val
+            if tin is not None:
+                have_tokens = True
+                total_in += tin
+            if tout is not None:
+                have_tokens = True
+                total_out += tout
+
+        if have_cost:
+            usage["cost"] = {
+                "totalUsd": round(total_cost, 4),
+                "byDay": [
+                    {"date": d, "usd": round(v, 4)} for d, v in sorted(cost_by_day.items())
+                ],
+            }
+        if have_tokens:
+            usage["tokens"] = {"input": total_in, "output": total_out}
+
+    return usage
+
+
+def get_usage_cache():
+    with _STATE_LOCK:
+        return dict(USAGE_CACHE)
+
+
+# ---------------------------------------------------------------------------
 # v2: locate the Claude Code CLI binary for headless spawning
 #
 # POSIX (Linux/macOS): `claude` is a node shebang script that execve handles
@@ -1031,12 +1182,13 @@ def top_terms_weighted(vec, k=25):
 
 
 def run_index():
-    global PROJECTS_CACHE
+    global PROJECTS_CACHE, USAGE_CACHE
     t0 = time.time()
     overrides = load_titles_override()
 
     sessions = []
     docs = []
+    cost_rows = []  # (cost_usd, tokens_in, tokens_out) aligned by index to `sessions`
     n_files = 0
 
     if os.path.isdir(STORE_DIR):
@@ -1078,6 +1230,9 @@ def run_index():
                     }
                 )
                 docs.append(parsed["doc"])
+                cost_rows.append(
+                    (parsed["cost_usd"], parsed["tokens_in"], parsed["tokens_out"])
+                )
     else:
         logger.warning("store dir not found: %s", STORE_DIR)
 
@@ -1119,8 +1274,10 @@ def run_index():
     os.replace(tmp_path, DATA_JSON)
 
     projects = compute_projects(ordered_sessions)
+    usage = compute_usage(ordered_sessions, clusters, cost_rows)
     with _STATE_LOCK:
         PROJECTS_CACHE = projects
+        USAGE_CACHE = usage
 
     secs = round(time.time() - t0, 2)
     logger.info(
@@ -1421,6 +1578,9 @@ class StardriveHandler(BaseHTTPRequestHandler):
             elif path == "/api/projects":
                 self._send_json(get_projects_cache())
 
+            elif path == "/api/usage":
+                self._send_json(get_usage_cache())
+
             elif path == "/api/transcript":
                 project = (qs.get("project") or [""])[0]
                 sid = (qs.get("id") or [""])[0]
@@ -1611,6 +1771,28 @@ def load_projects_cache_from_disk():
         logger.warning("could not warm projects cache from data.json: %s", e)
 
 
+def load_usage_cache_from_disk():
+    """Warm USAGE_CACHE from an existing data.json without a full reindex (same
+    rationale as load_projects_cache_from_disk — used at startup when
+    data.json is already fresh). data.json's "sessions" list carries mtime/
+    msgs/kb/project/projectLabel/cluster, enough for totals/byDay/byProject/
+    byCluster, but not the per-session cost/tokens captured during parsing —
+    those are never persisted to data.json, so cost_rows is omitted here and
+    compute_usage leaves the "cost"/"tokens" keys out until the next
+    run_index() (a POST /refresh or a restart with stale data)."""
+    global USAGE_CACHE
+    if not os.path.isfile(DATA_JSON):
+        return
+    try:
+        with open(DATA_JSON, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        usage = compute_usage(data.get("sessions", []), data.get("clusters", []))
+        with _STATE_LOCK:
+            USAGE_CACHE = usage
+    except Exception as e:
+        logger.warning("could not warm usage cache from data.json: %s", e)
+
+
 def main():
     global STORE_DIR, ENABLE_RUN, RUN_TIMEOUT
     parser = argparse.ArgumentParser(description="Stardrive indexer + server")
@@ -1657,6 +1839,7 @@ def main():
         run_index()
     else:
         load_projects_cache_from_disk()
+        load_usage_cache_from_disk()
     start_server(args.bind, args.port)
 
 
