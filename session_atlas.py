@@ -54,6 +54,10 @@ LOG_TRUNCATE_BYTES = 1024 * 1024
 # v2: chat/transcript/skills/memory
 TRANSCRIPT_MAX_MSGS = 500
 TRANSCRIPT_MAX_CHARS = 2 * 1024 * 1024
+TRANSCRIPT_MAX_TOOLS = 20          # v3: max tool_use blocks surfaced per message
+TRANSCRIPT_TOOL_INPUT_CAP = 200    # v3: cap on a tool_use input summary
+TRANSCRIPT_TOOL_RESULT_CAP = 300   # v3: cap on a tool_result snippet
+TRANSCRIPT_THINK_CAP = 1500        # v3: cap on concatenated thinking text
 MAX_CHAT_PROCS = 3
 DEFAULT_RUN_TIMEOUT = 900
 MAX_CHAT_BODY_BYTES = 1 * 1024 * 1024
@@ -444,7 +448,85 @@ def scan_memory():
 
 
 # ---------------------------------------------------------------------------
-# v2: /api/transcript — parse one session jsonl into chat-bubble messages
+# v3: transcript block helpers — tool_use input summary, tool_result snippet,
+# thinking text. Each is individually capped and does NOT count toward the
+# transcript char budget (per CONSOLE-SPEC).
+# ---------------------------------------------------------------------------
+
+
+def _collapse_cap(text, cap):
+    """Collapse whitespace runs to single spaces, strip, then hard-cap length."""
+    text = WS_RE.sub(" ", text).strip()
+    if len(text) > cap:
+        text = text[:cap]
+    return text
+
+
+def summarize_tool_input(inp):
+    """Compact one-line summary of a tool_use block's input: the first present
+    key of the priority list (its string value) wins, else json.dumps(input).
+    Whitespace collapsed, capped at TRANSCRIPT_TOOL_INPUT_CAP."""
+    raw = None
+    if isinstance(inp, dict):
+        for k in ("command", "file_path", "path", "pattern", "url", "prompt", "description", "query"):
+            v = inp.get(k)
+            if isinstance(v, str):
+                raw = v
+                break
+    if raw is None:
+        try:
+            raw = json.dumps(inp, ensure_ascii=False)
+        except (TypeError, ValueError):
+            raw = str(inp)
+    return _collapse_cap(raw, TRANSCRIPT_TOOL_INPUT_CAP)
+
+
+def tool_result_snippet(content):
+    """Snippet of a tool_result block's content: a string as-is, or a list ->
+    concatenated {"type":"text"} block texts. Collapsed + capped."""
+    if isinstance(content, str):
+        raw = content
+    elif isinstance(content, list):
+        parts = []
+        for b in content:
+            if isinstance(b, dict) and b.get("type") == "text":
+                bt = b.get("text")
+                if isinstance(bt, str):
+                    parts.append(bt)
+        raw = "\n".join(parts)
+    else:
+        raw = ""
+    return _collapse_cap(raw, TRANSCRIPT_TOOL_RESULT_CAP)
+
+
+def attach_tool_results(d, tool_map):
+    """Attach tool_result blocks (which live in user-type jsonl lines and may
+    appear AFTER the assistant line that emitted the tool_use) onto the matching
+    tool entry via tool_use_id. Entries are the same mutable dicts already stored
+    on emitted assistant messages, so this single-pass late attach shows up
+    there without a second scan."""
+    msg = d.get("message")
+    if not isinstance(msg, dict):
+        return
+    content = msg.get("content")
+    if not isinstance(content, list):
+        return
+    for block in content:
+        if not isinstance(block, dict) or block.get("type") != "tool_result":
+            continue
+        tuid = block.get("tool_use_id")
+        if not isinstance(tuid, str):
+            continue
+        entry = tool_map.get(tuid)
+        if entry is None:
+            continue
+        entry["result"] = tool_result_snippet(block.get("content"))
+        entry["isError"] = bool(block.get("is_error", False))
+
+
+# ---------------------------------------------------------------------------
+# v2/v3: /api/transcript — parse one session jsonl into chat-bubble messages
+# (v3: structured tool_use / tool_result / thinking surfaced on assistant msgs)
 # ---------------------------------------------------------------------------
 
 
@@ -456,6 +538,7 @@ def build_transcript(path, session_id, override_title=None):
     bytes_read = 0
     summary_title = None
     first_user_text = None
+    tool_map = {}  # tool_use_id -> tool entry dict (mutable; late result attach)
 
     with open(path, "r", encoding="utf-8-sig", errors="replace") as f:
         for raw_line in f:
@@ -493,7 +576,16 @@ def build_transcript(path, session_id, override_title=None):
             ts = d.get("timestamp")
             ts = ts if isinstance(ts, str) else None
 
+            tools = None
+            thinking = None
+
             if t == "user":
+                # tool_result blocks arrive in user-type lines (possibly after
+                # the assistant line that emitted the tool_use). Attach them
+                # before deciding whether this line is a displayable user message
+                # — lines that are ONLY tool_results become no message at all
+                # (extract_user_text returns None), matching existing behavior.
+                attach_tool_results(d, tool_map)
                 text = extract_user_text(d)
                 if text is None:
                     continue
@@ -505,19 +597,49 @@ def build_transcript(path, session_id, override_title=None):
                 if not isinstance(msg, dict):
                     continue
                 content = msg.get("content")
-                parts = []
+                text_parts = []
+                tool_entries = []
+                think_parts = []
                 if isinstance(content, str):
                     if content:
-                        parts.append(content)
+                        text_parts.append(content)
                 elif isinstance(content, list):
                     for block in content:
-                        if isinstance(block, dict) and block.get("type") == "text":
+                        if not isinstance(block, dict):
+                            continue
+                        btype = block.get("type")
+                        if btype == "text":
                             bt = block.get("text")
                             if isinstance(bt, str) and bt:
-                                parts.append(bt)
-                if not parts:
+                                text_parts.append(bt)
+                        elif btype == "tool_use":
+                            if len(tool_entries) >= TRANSCRIPT_MAX_TOOLS:
+                                continue
+                            name = block.get("name")
+                            tool_entry = {
+                                "name": name if isinstance(name, str) else "",
+                                "input": summarize_tool_input(block.get("input")),
+                                "result": None,
+                                "isError": False,
+                            }
+                            tool_entries.append(tool_entry)
+                            tuid = block.get("id")
+                            if isinstance(tuid, str) and tuid:
+                                tool_map[tuid] = tool_entry
+                        elif btype == "thinking":
+                            tk = block.get("thinking")
+                            if isinstance(tk, str) and tk:
+                                think_parts.append(tk)
+                # Emit if the line carries any text, tools, or thinking. A
+                # tool_use-only assistant line (no text) is now emitted with
+                # text "" rather than skipped.
+                if not text_parts and not tool_entries and not think_parts:
                     continue
-                entry_text = "\n".join(parts)
+                entry_text = "\n".join(text_parts)
+                if tool_entries:
+                    tools = tool_entries
+                if think_parts:
+                    thinking = _collapse_cap("\n".join(think_parts), TRANSCRIPT_THINK_CAP)
 
             if len(messages) >= TRANSCRIPT_MAX_MSGS or total_chars >= TRANSCRIPT_MAX_CHARS:
                 truncated = True
@@ -528,7 +650,12 @@ def build_transcript(path, session_id, override_title=None):
                 entry_text = entry_text[:remaining]
                 truncated = True
 
-            messages.append({"role": t, "text": entry_text, "ts": ts})
+            record = {"role": t, "text": entry_text, "ts": ts}
+            if tools:
+                record["tools"] = tools
+            if thinking:
+                record["thinking"] = thinking
+            messages.append(record)
             total_chars += len(entry_text)
 
     if override_title:
@@ -617,6 +744,36 @@ def resolve_claude_binary():
         return shim_candidates[0], True
 
     return None, False
+
+
+# ---------------------------------------------------------------------------
+# v3: stop a running chat child (POST /api/chat/stop)
+# ---------------------------------------------------------------------------
+
+
+def stop_chat_proc(proc):
+    """Terminate a chat child immediately (SIGTERM); if still alive after 3s,
+    escalate to kill(). The wait/kill runs in a daemon thread so the HTTP
+    response returns at once. Only ever called with a proc pulled from
+    ACTIVE_PROCS — we never signal a pid that isn't in the registry. The
+    /api/chat streaming loop then finishes naturally (stdout EOF -> atlas_done)."""
+    try:
+        proc.terminate()
+    except Exception:
+        pass
+
+    def _escalate():
+        try:
+            proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    threading.Thread(target=_escalate, daemon=True).start()
 
 
 # ---------------------------------------------------------------------------
@@ -1033,16 +1190,24 @@ class AtlasHandler(BaseHTTPRequestHandler):
         self._sse_start()
         client_gone = False
         try:
-            for line in proc.stdout:
-                line = line.rstrip("\r\n")
-                if not line:
-                    continue
-                try:
-                    self._sse_send("data: %s\n\n" % line)
-                except OSError:
-                    client_gone = True
-                    logger.info("client disconnected from /api/chat pid=%s", proc.pid)
-                    break
+            # v3: announce the child pid as the very first SSE event so the
+            # client can target POST /api/chat/stop.
+            try:
+                self._sse_send('data: {"type":"atlas_started","pid":%d}\n\n' % proc.pid)
+            except OSError:
+                client_gone = True
+                logger.info("client disconnected from /api/chat pid=%s", proc.pid)
+            if not client_gone:
+                for line in proc.stdout:
+                    line = line.rstrip("\r\n")
+                    if not line:
+                        continue
+                    try:
+                        self._sse_send("data: %s\n\n" % line)
+                    except OSError:
+                        client_gone = True
+                        logger.info("client disconnected from /api/chat pid=%s", proc.pid)
+                        break
         finally:
             timer.cancel()
             if client_gone or timed_out["v"] or proc.poll() is None:
@@ -1171,6 +1336,28 @@ class AtlasHandler(BaseHTTPRequestHandler):
                     self._send_json({"error": err}, status=400)
                     return
                 self._handle_chat(body)
+
+            elif path == "/api/chat/stop":
+                if not ENABLE_RUN:
+                    self._send_json(
+                        {"error": "run disabled; start with --enable-run"}, status=403
+                    )
+                    return
+                body, err = self._read_json_body()
+                if err:
+                    self._send_json({"error": err}, status=400)
+                    return
+                pid = body.get("pid")
+                if not isinstance(pid, int) or isinstance(pid, bool):
+                    self._send_json({"error": "pid must be an integer"}, status=400)
+                    return
+                with ACTIVE_LOCK:
+                    proc = ACTIVE_PROCS.get(pid)
+                if proc is None:
+                    self._send_json({"error": "no such active chat process"}, status=404)
+                    return
+                stop_chat_proc(proc)
+                self._send_json({"ok": True})
 
             else:
                 self._send_json({"error": "not found"}, status=404)
