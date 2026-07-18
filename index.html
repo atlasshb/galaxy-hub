@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Stardrive</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Ccircle%20cx='12'%20cy='12'%20r='9.2'%20fill='none'%20stroke='%23d4a94f'%20stroke-width='1'/%3E%3Cpath%20d='M12%202.5%20L13.4%2010.6%20L21.5%2012%20L13.4%2013.4%20L12%2021.5%20L10.6%2013.4%20L2.5%2012%20L10.6%2010.6%20Z'%20fill='%23d4a94f'/%3E%3C/svg%3E">
+<title>Galaxy Hub</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cg%20transform='rotate(-24%2012%2012)'%3E%3Cellipse%20cx='12'%20cy='12'%20rx='9.2'%20ry='3.6'%20fill='none'%20stroke='%23d4a94f'%20stroke-width='1.3'/%3E%3Ccircle%20cx='21.2'%20cy='12'%20r='1.35'%20fill='%23d4a94f'/%3E%3C/g%3E%3Cg%20transform='rotate(46%2012%2012)'%20opacity='0.5'%3E%3Cellipse%20cx='12'%20cy='12'%20rx='9.2'%20ry='2.6'%20fill='none'%20stroke='%23d4a94f'%20stroke-width='1'/%3E%3C/g%3E%3Ccircle%20cx='12'%20cy='12'%20r='2.5'%20fill='%23d4a94f'/%3E%3C/svg%3E">
 <script>
   /* Apply persisted theme before first paint to avoid a flash. */
   (function(){
@@ -106,7 +106,7 @@
   .slider-group span.val{color:var(--text);min-width:34px;display:inline-block;}
   #refreshBtn{
     background:var(--bg);border:1px solid var(--border);color:var(--text);
-    border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px;
+    border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px;margin-left:auto;
   }
   #refreshBtn:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}
   #refreshBtn:disabled{opacity:.5;cursor:default;}
@@ -582,6 +582,102 @@
     outline:2px solid var(--accent);outline-offset:2px;
   }
 
+  /* ---------- Galaxy Hub shell: app rail + app pane ---------- */
+  .ctx-hidden{display:none !important;}
+  .shell-row{flex:1 1 auto;display:flex;min-height:0;position:relative;}
+  .app-rail{
+    flex:0 0 auto;width:78px;display:flex;flex-direction:column;gap:4px;
+    padding:10px 8px;background:var(--header-bg);border-right:1px solid var(--border);
+    overflow-y:auto;z-index:9;
+    backdrop-filter:blur(8px) saturate(1.2);-webkit-backdrop-filter:blur(8px) saturate(1.2);
+  }
+  .rail-item{
+    display:flex;flex-direction:column;align-items:center;gap:5px;
+    background:transparent;border:1px solid transparent;border-radius:10px;
+    color:var(--muted);cursor:pointer;padding:9px 4px;font-size:10px;letter-spacing:.2px;
+    width:100%;line-height:1.1;text-align:center;
+  }
+  .rail-item .rail-glyph{width:22px;height:22px;display:block;flex:0 0 auto;}
+  .rail-item:hover{color:var(--text);border-color:var(--border);background:var(--panel);}
+  .rail-item[aria-current="page"]{
+    color:var(--accent);border-color:var(--accent);
+    background:linear-gradient(180deg,rgba(var(--accent-rgb),.16),rgba(var(--accent-rgb),.04));
+    box-shadow:inset 0 0 0 1px rgba(var(--accent-rgb),.22);
+  }
+  .rail-item:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .rail-sep{height:1px;background:var(--border);margin:6px 8px;flex:0 0 auto;}
+  .rail-toggle{display:none;}
+
+  .app-pane{flex:1 1 auto;display:flex;flex-direction:column;min-width:0;min-height:0;position:relative;}
+  .app-subbar{
+    flex:0 0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    padding:8px 16px;border-bottom:1px solid var(--border);background:var(--panel);
+  }
+  .app-subbar.hidden{display:none;}
+  .app-submark{display:inline-flex;align-items:center;gap:8px;color:var(--accent);font-weight:700;letter-spacing:1.1px;font-size:12px;text-transform:uppercase;}
+  .app-submark .submark-glyph{flex:0 0 auto;display:block;color:var(--accent);}
+  .app-submark .submark-tag{color:var(--muted);font-weight:600;letter-spacing:.2px;font-size:11px;text-transform:none;}
+  .view-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-left:auto;}
+  .view-tabs[hidden]{display:none;}
+
+  /* ---------- Hub Home launcher ---------- */
+  .hub-home{flex:1 1 auto;overflow-y:auto;}
+  .hub-hero{
+    padding:30px 28px 6px;
+    background:
+      radial-gradient(1100px 220px at 18% -50%, rgba(var(--accent-rgb),.15), transparent 62%),
+      radial-gradient(900px 200px at 92% -40%, rgba(var(--accent2-rgb),.12), transparent 60%);
+  }
+  .hub-hero-mark{display:inline-flex;align-items:center;gap:13px;}
+  .hub-hero-mark .hub-galaxy{width:42px;height:42px;color:var(--accent);flex:0 0 auto;}
+  .hub-hero h2{margin:0;font-size:22px;letter-spacing:2.5px;color:var(--text);font-weight:800;}
+  .hub-hero p{margin:10px 0 0;color:var(--muted);font-size:13px;max-width:64ch;line-height:1.55;}
+  .hub-grid{
+    padding:20px 24px 30px;display:grid;gap:16px;
+    grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));align-content:start;
+  }
+  .hub-card{
+    position:relative;background:var(--panel);border:1px solid var(--border);border-radius:12px;
+    padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:9px;overflow:hidden;
+    transition:border-color .12s,transform .12s,box-shadow .12s;
+  }
+  .hub-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 26px var(--shadow);}
+  .hub-card::after{
+    content:"";position:absolute;top:0;right:0;width:130px;height:130px;
+    background:radial-gradient(circle at 78% 12%, rgba(var(--accent-rgb),.10), transparent 62%);
+    pointer-events:none;
+  }
+  .hub-card.soon{opacity:.8;}
+  .hub-card-top{display:flex;align-items:center;gap:11px;}
+  .hub-card-glyph{
+    width:42px;height:42px;flex:0 0 auto;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    background:var(--bg);border:1px solid var(--border);color:var(--accent);
+  }
+  .hub-card-glyph svg{width:23px;height:23px;display:block;}
+  .hub-card-name{font-weight:800;font-size:15px;letter-spacing:.4px;color:var(--text);}
+  .hub-card-desc{font-size:12px;color:var(--muted);line-height:1.5;flex:1 1 auto;}
+  .hub-card-stat{
+    display:inline-flex;align-items:center;gap:7px;align-self:flex-start;
+    font-size:11px;color:var(--accent2);border:1px solid var(--border);border-radius:20px;
+    padding:3px 11px;font-variant-numeric:tabular-nums;
+  }
+  .hub-card-stat.soon{color:var(--muted);}
+  .hub-card-stat .dot{width:6px;height:6px;border-radius:50%;background:var(--accent2);box-shadow:0 0 6px var(--accent2);flex:0 0 auto;}
+  .hub-card-stat.soon .dot{background:var(--muted);box-shadow:none;}
+
+  /* ---------- Dashboard placeholder ---------- */
+  .dash-placeholder{
+    flex:1 1 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:15px;text-align:center;padding:40px 24px;
+  }
+  .dash-placeholder .dash-glyph{width:58px;height:58px;color:var(--accent);opacity:.85;}
+  .dash-placeholder h2{margin:0;font-size:18px;letter-spacing:1px;color:var(--text);}
+  .dash-placeholder p{margin:0;color:var(--muted);font-size:13px;max-width:46ch;line-height:1.6;}
+  .dash-badge{
+    font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);
+    border:1px solid var(--accent);border-radius:20px;padding:4px 14px;
+  }
+
   /* ---------- reduced motion ---------- */
   @media (prefers-reduced-motion: reduce){
     *{scroll-behavior:auto !important;}
@@ -590,6 +686,8 @@
     .tool-spinner{animation:none !important;border-top-color:var(--accent2);}
     .detail-panel{transition:none !important;}
     .chat-sidebar{transition:none !important;}
+    .app-rail{transition:none !important;}
+    .hub-card{transition:none !important;}
     .skip-link{transition:none !important;}
   }
 
@@ -604,6 +702,18 @@
     .chat-sidebar-toggle{display:inline-flex;}
     .chat-transcript{padding-top:48px;}
     .memory-list{width:210px;flex-basis:210px;}
+    /* app rail collapses to an off-canvas drawer, opened by the header ☰ */
+    .rail-toggle{display:inline-flex;order:-1;}
+    .app-rail{
+      position:absolute;left:0;top:0;bottom:0;width:210px;max-width:80%;
+      transform:translateX(-102%);transition:transform .2s ease;z-index:26;
+      box-shadow:6px 0 24px var(--shadow);
+    }
+    .app-rail.open{transform:none;}
+    .rail-item{flex-direction:row;justify-content:flex-start;gap:12px;font-size:13px;padding:11px 12px;text-align:left;}
+    .rail-item .rail-glyph{width:20px;height:20px;}
+    .app-scrim{position:absolute;inset:0;background:rgba(0,0,0,.42);z-index:25;}
+    .app-scrim.show{display:block;}
   }
   @media (max-width:760px){
     .slider-group{display:none;}
@@ -621,10 +731,11 @@
   <a href="#main" class="skip-link">Skip to main content</a>
 
   <header class="header">
-    <h1 class="wordmark"><svg class="wordmark-glyph" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="1"></circle><path d="M12 2.5 L13.4 10.6 L21.5 12 L13.4 13.4 L12 21.5 L10.6 13.4 L2.5 12 L10.6 10.6 Z" fill="currentColor"></path></svg><span>STARDRIVE</span></h1>
+    <button class="icon-btn rail-toggle" id="railToggle" aria-label="Open app menu" aria-expanded="false" aria-controls="appRail">☰</button>
+    <h1 class="wordmark"><svg class="wordmark-glyph" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><g transform="rotate(-24 12 12)"><ellipse cx="12" cy="12" rx="9.2" ry="3.6" fill="none" stroke="currentColor" stroke-width="1.3"></ellipse><circle cx="21.2" cy="12" r="1.35" fill="currentColor"></circle></g><g transform="rotate(46 12 12)" opacity="0.5"><ellipse cx="12" cy="12" rx="9.2" ry="2.6" fill="none" stroke="currentColor" stroke-width="1"></ellipse></g><circle cx="12" cy="12" r="2.5" fill="currentColor"></circle></svg><span>GALAXY HUB</span></h1>
     <div class="stats" id="statsBar">loading…</div>
-    <input type="text" id="searchInput" placeholder="search title or terms…" autocomplete="off" spellcheck="false">
-    <div class="slider-group">
+    <input type="text" id="searchInput" class="ctx-hidden" placeholder="search title or terms…" autocomplete="off" spellcheck="false">
+    <div class="slider-group ctx-hidden" id="edgeSliderGroup">
       <span>edge ≥</span>
       <input type="range" id="edgeSlider" min="0.15" max="0.60" step="0.01" value="0.30" aria-label="Edge weight threshold">
       <span class="val" id="edgeVal">0.30</span>
@@ -632,20 +743,51 @@
     <button id="refreshBtn">Refresh</button>
     <button class="icon-btn palette-hint" id="paletteBtn" title="Command palette">Search <kbd>⌘K</kbd></button>
     <button class="icon-btn" id="themeToggle" title="Toggle theme" aria-label="Toggle theme">☾</button>
-    <div class="tabs" role="tablist" aria-label="Views">
-      <button class="tab-btn active" id="tab-chat" data-view="chat" role="tab" aria-selected="true" aria-controls="viewChat">Chat</button>
-      <button class="tab-btn" id="tab-projects" data-view="projects" role="tab" aria-selected="false" aria-controls="viewProjects">Projects</button>
-      <button class="tab-btn" id="tab-skills" data-view="skills" role="tab" aria-selected="false" aria-controls="viewSkills">Skills</button>
-      <button class="tab-btn" id="tab-memory" data-view="memory" role="tab" aria-selected="false" aria-controls="viewMemory">Memory</button>
-      <button class="tab-btn" id="tab-tiles" data-view="tiles" role="tab" aria-selected="false" aria-controls="viewTiles">Tiles</button>
-      <button class="tab-btn" id="tab-tree" data-view="tree" role="tab" aria-selected="false" aria-controls="viewTree">Tree</button>
-      <button class="tab-btn" id="tab-graph" data-view="graph" role="tab" aria-selected="false" aria-controls="viewGraph">Graph</button>
-      <button class="tab-btn" id="tab-fusion" data-view="fusion" role="tab" aria-selected="false" aria-controls="viewFusion">Fusion</button>
-    </div>
   </header>
 
+  <div class="shell-row">
+    <nav class="app-rail" id="appRail" aria-label="Apps">
+      <button class="rail-item" data-app="home" aria-current="page"><svg class="rail-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 L12 4 L21 11.5"></path><path d="M5 10.5 V20 H19 V10.5"></path><path d="M10 20 V14 H14 V20"></path></svg><span>Home</span></button>
+      <button class="rail-item" data-app="stardrive"><svg class="rail-glyph" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="1.2"></circle><path d="M12 2.5 L13.4 10.6 L21.5 12 L13.4 13.4 L12 21.5 L10.6 13.4 L2.5 12 L10.6 10.6 Z" fill="currentColor"></path></svg><span>Stardrive</span></button>
+      <button class="rail-item" data-app="nodes"><svg class="rail-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 8 L17 6 M7.5 9.5 L11 15 M16.5 7.8 L12.8 14.4"></path><circle cx="6" cy="7" r="2.4" fill="currentColor" stroke="none"></circle><circle cx="18" cy="6" r="2" fill="currentColor" stroke="none"></circle><circle cx="12" cy="16.5" r="2.4" fill="currentColor" stroke="none"></circle></svg><span>Nodes</span></button>
+      <button class="rail-item" data-app="vault"><svg class="rail-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"></rect><path d="M8 10.5 V7.5 a4 4 0 0 1 8 0 V10.5"></path><circle cx="12" cy="15.2" r="1.3" fill="currentColor" stroke="none"></circle></svg><span>Vault</span></button>
+      <button class="rail-item" data-app="dashboard"><svg class="rail-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20 H20"></path><rect x="5.5" y="12" width="3.2" height="6" rx="0.6" fill="currentColor" stroke="none"></rect><rect x="10.4" y="8" width="3.2" height="10" rx="0.6" fill="currentColor" stroke="none"></rect><rect x="15.3" y="5" width="3.2" height="13" rx="0.6" fill="currentColor" stroke="none"></rect></svg><span>Dashboard</span></button>
+      <div class="rail-sep" aria-hidden="true"></div>
+      <button class="rail-item" data-app="projects"><svg class="rail-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 6.5 a1.5 1.5 0 0 1 1.5 -1.5 H9 l2 2 h6.5 a1.5 1.5 0 0 1 1.5 1.5 V17 a1.5 1.5 0 0 1 -1.5 1.5 H5 A1.5 1.5 0 0 1 3.5 17 Z"></path></svg><span>Projects</span></button>
+    </nav>
+    <div class="app-scrim" id="appScrim"></div>
+    <div class="app-pane">
+      <div class="app-subbar hidden" id="appSubbar">
+        <span class="app-submark" id="appSubmark"></span>
+        <div class="view-tabs" id="viewTabsNodes" role="tablist" aria-label="Nodes views" hidden>
+          <button class="tab-btn" id="vtab-graph" data-view="graph" role="tab" aria-selected="false" aria-controls="viewGraph" tabindex="-1">Graph</button>
+          <button class="tab-btn" id="vtab-tiles" data-view="tiles" role="tab" aria-selected="false" aria-controls="viewTiles" tabindex="-1">Tiles</button>
+          <button class="tab-btn" id="vtab-tree" data-view="tree" role="tab" aria-selected="false" aria-controls="viewTree" tabindex="-1">Tree</button>
+          <button class="tab-btn" id="vtab-fusion" data-view="fusion" role="tab" aria-selected="false" aria-controls="viewFusion" tabindex="-1">Fusion</button>
+        </div>
+        <div class="view-tabs" id="viewTabsVault" role="tablist" aria-label="Vault views" hidden>
+          <button class="tab-btn" id="vtab-memory" data-view="memory" role="tab" aria-selected="false" aria-controls="viewMemory" tabindex="-1">Memory</button>
+          <button class="tab-btn" id="vtab-skills" data-view="skills" role="tab" aria-selected="false" aria-controls="viewSkills" tabindex="-1">Skills</button>
+        </div>
+      </div>
+
   <main class="main" id="main" tabindex="-1">
-    <div class="view active" id="viewChat" role="tabpanel" aria-labelledby="tab-chat">
+    <div class="view active" id="viewHome" role="region" aria-label="Galaxy Hub home">
+      <div class="hub-home">
+        <div class="hub-hero">
+          <div class="hub-hero-mark">
+            <svg class="hub-galaxy" viewBox="0 0 24 24" aria-hidden="true"><g transform="rotate(-24 12 12)"><ellipse cx="12" cy="12" rx="9.2" ry="3.6" fill="none" stroke="currentColor" stroke-width="1.1"></ellipse><circle cx="21.2" cy="12" r="1.35" fill="currentColor"></circle></g><g transform="rotate(46 12 12)" opacity="0.5"><ellipse cx="12" cy="12" rx="9.2" ry="2.6" fill="none" stroke="currentColor" stroke-width="0.9"></ellipse></g><circle cx="12" cy="12" r="2.5" fill="currentColor"></circle></svg>
+            <div>
+              <h2>GALAXY HUB</h2>
+              <p>Your Claude Code work, charted. Open an app to read and drive sessions, explore the session galaxy, or browse everything you have saved.</p>
+            </div>
+          </div>
+        </div>
+        <div class="hub-grid" id="hubGrid"></div>
+      </div>
+    </div>
+
+    <div class="view" id="viewChat" role="region" aria-label="Stardrive chat">
       <div class="chat-layout">
         <button class="chat-sidebar-toggle" id="chatSidebarToggle" title="Sessions" aria-label="Toggle session list">☰</button>
         <div class="chat-scrim" id="chatScrim"></div>
@@ -681,30 +823,30 @@
       </div>
     </div>
 
-    <div class="view" id="viewProjects" role="tabpanel" aria-labelledby="tab-projects">
+    <div class="view" id="viewProjects" role="region" aria-label="Projects">
       <div class="projects-grid" id="projectsGrid"></div>
     </div>
 
-    <div class="view" id="viewSkills" role="tabpanel" aria-labelledby="tab-skills">
+    <div class="view" id="viewSkills" role="tabpanel" aria-labelledby="vtab-skills">
       <div class="skills-list" id="skillsList"></div>
     </div>
 
-    <div class="view" id="viewMemory" role="tabpanel" aria-labelledby="tab-memory">
+    <div class="view" id="viewMemory" role="tabpanel" aria-labelledby="vtab-memory">
       <div class="memory-layout">
         <div class="memory-list" id="memoryList"></div>
         <div class="memory-content" id="memoryContent"><div class="stats" style="padding:14px;">Select a memory file.</div></div>
       </div>
     </div>
 
-    <div class="view" id="viewTiles" role="tabpanel" aria-labelledby="tab-tiles">
+    <div class="view" id="viewTiles" role="tabpanel" aria-labelledby="vtab-tiles">
       <div class="cluster-grid" id="clusterGrid"></div>
     </div>
 
-    <div class="view" id="viewTree" role="tabpanel" aria-labelledby="tab-tree">
+    <div class="view" id="viewTree" role="tabpanel" aria-labelledby="vtab-tree">
       <div class="tree-container" id="treeContainer"></div>
     </div>
 
-    <div class="view" id="viewGraph" role="tabpanel" aria-labelledby="tab-graph">
+    <div class="view" id="viewGraph" role="tabpanel" aria-labelledby="vtab-graph">
       <canvas id="graphCanvas" role="img" aria-label="Session similarity graph"></canvas>
       <div class="graph-legend" id="graphLegend">
         <div class="graph-legend-head">
@@ -717,7 +859,7 @@
       <div class="graph-hint" id="graphHint">click: focus · double-click: expand · esc: clear · /: search</div>
     </div>
 
-    <div class="view" id="viewFusion" role="tabpanel" aria-labelledby="tab-fusion">
+    <div class="view" id="viewFusion" role="tabpanel" aria-labelledby="vtab-fusion">
       <div class="fusion-controls">
         <span>fusion ≥</span>
         <input type="range" id="fusionSlider" min="0.50" max="0.95" step="0.01" value="0.80" aria-label="Fusion similarity threshold">
@@ -727,17 +869,28 @@
       <div class="fusion-list" id="fusionList"></div>
     </div>
 
+    <div class="view" id="viewDashboard" role="region" aria-label="Dashboard">
+      <div class="dash-placeholder">
+        <svg class="dash-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20 H20"></path><rect x="5.5" y="12.5" width="3.4" height="5.5" rx="0.6" fill="currentColor" stroke="none"></rect><rect x="10.3" y="8.5" width="3.4" height="9.5" rx="0.6" fill="currentColor" stroke="none"></rect><rect x="15.1" y="5.5" width="3.4" height="12.5" rx="0.6" fill="currentColor" stroke="none"></rect></svg>
+        <span class="dash-badge">Coming soon</span>
+        <h2>Dashboard</h2>
+        <p>Usage, activity and cost analytics are being charted. This app will show sessions and messages over time, per-project and per-region activity, and cost when the session store carries it.</p>
+      </div>
+    </div>
+
     <div class="detail-panel" id="detailPanel" role="dialog" aria-labelledby="detailTitle" aria-hidden="true" tabindex="-1">
       <div class="detail-header">
         <strong id="detailTitle">Session detail</strong>
         <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
-          <button class="copy-btn" id="openInChatBtn">Open in Chat</button>
+          <button class="copy-btn" id="openInChatBtn">Open in Stardrive</button>
           <button class="close-btn" id="detailClose" title="Close" aria-label="Close session detail">✕</button>
         </div>
       </div>
       <div class="detail-body" id="detailBody"></div>
     </div>
   </main>
+    </div><!-- /.app-pane -->
+  </div><!-- /.shell-row -->
 
   <div class="palette-overlay" id="paletteOverlay">
     <div class="palette-box" role="dialog" aria-modal="true" aria-label="Command palette">
@@ -1612,6 +1765,7 @@
         buildIndices();
         showError("No sessions charted yet — run the indexer, then retry.");
         renderStats();
+        renderHome();
         return;
       }
       state.data = json;
@@ -1631,6 +1785,7 @@
     renderChatSidebar();
     Graph.setData(state.data);
     renderGraphLegend();
+    renderHome();
   }
 
   function renderStats(){
@@ -2505,6 +2660,7 @@
       state.projects = Array.isArray(list) ? list : [];
       renderProjects();
       populateNewSessionCwdOptions();
+      renderHome();
     }).catch(function(err){
       state.projects = [];
       var el = $("projectsGrid");
@@ -2543,6 +2699,7 @@
     return apiGet("/api/skills").then(function(j){
       state.skills = (j && Array.isArray(j.skills)) ? j.skills : [];
       renderSkills();
+      renderHome();
     }).catch(function(err){
       state.skills = [];
       var el = $("skillsList");
@@ -2577,6 +2734,7 @@
     return apiGet("/api/memory").then(function(res){
       state.memoryList = Array.isArray(res) ? res : (res && Array.isArray(res.items) ? res.items : []);
       renderMemoryList();
+      renderHome();
     }).catch(function(err){
       state.memoryList = [];
       var el = $("memoryList");
@@ -2805,7 +2963,7 @@
         '<div class="story-lead">' + lead + "</div>" +
         '<div class="story-actions">' +
           '<button class="story-btn primary" id="askAboutBtn">Ask about this session</button>' +
-          '<button class="story-btn" id="openInChat2Btn">Open in Chat</button>' +
+          '<button class="story-btn" id="openInChat2Btn">Open in Stardrive</button>' +
         "</div>" +
         '<div class="detail-row"><div class="detail-label">Connections</div>' + connHtml + "</div>" +
         factsHtml(s);
@@ -2912,20 +3070,263 @@
   // ---------- wiring ----------
   function capitalize(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
 
-  function switchTab(v){
-    document.querySelectorAll(".tab-btn").forEach(function(b){
-      var on = b.dataset.view === v;
-      b.classList.toggle("active", on);
-      b.setAttribute("aria-selected", on ? "true" : "false");
-    });
-    document.querySelectorAll(".view").forEach(function(el){ el.classList.remove("active"); });
-    $("view" + capitalize(v)).classList.add("active");
-    state.view = v;
-    if(v === "graph"){ Graph.activate(); } else { Graph.deactivate(); }
+  // ========== Galaxy Hub shell: apps, views, navigation ==========
+  // Apps group the original 8 tabs. Nodes/Vault carry internal view tabs;
+  // Stardrive/Projects are single-view; Home is the launcher; Dashboard is a
+  // present-but-"coming soon" placeholder (deliberately unwired to any endpoint).
+  var APP_DEF = {
+    home:      { label:"Home",      views:[],                                def:null,       cont:"viewHome" },
+    stardrive: { label:"Stardrive", views:["chat"],                          def:"chat",     cont:null },
+    nodes:     { label:"Nodes",     views:["graph","tiles","tree","fusion"], def:"graph",    cont:null },
+    vault:     { label:"Vault",     views:["memory","skills"],               def:"memory",   cont:null },
+    dashboard: { label:"Dashboard", views:[],                                def:null,       cont:"viewDashboard" },
+    projects:  { label:"Projects",  views:["projects"],                      def:"projects", cont:null }
+  };
+  var VIEW_TO_APP = { chat:"stardrive", graph:"nodes", tiles:"nodes", tree:"nodes",
+    fusion:"nodes", memory:"vault", skills:"vault", projects:"projects" };
+
+  // Per-app sub-mark glyphs (inline SVG, gold via currentColor). Stardrive keeps
+  // the compass-rose; the others get matching line-art. Also reused on Hub Home.
+  var GLYPH = {
+    stardrive:'<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M12 2.5 L13.4 10.6 L21.5 12 L13.4 13.4 L12 21.5 L10.6 13.4 L2.5 12 L10.6 10.6 Z" fill="currentColor"/></svg>',
+    nodes:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 8 L17 6 M7.5 9.5 L11 15 M16.5 7.8 L12.8 14.4"/><circle cx="6" cy="7" r="2.4" fill="currentColor" stroke="none"/><circle cx="18" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="12" cy="16.5" r="2.4" fill="currentColor" stroke="none"/></svg>',
+    vault:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5 V7.5 a4 4 0 0 1 8 0 V10.5"/><circle cx="12" cy="15.2" r="1.3" fill="currentColor" stroke="none"/></svg>',
+    dashboard:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20 H20"/><rect x="5.5" y="12" width="3.2" height="6" rx="0.6" fill="currentColor" stroke="none"/><rect x="10.4" y="8" width="3.2" height="10" rx="0.6" fill="currentColor" stroke="none"/><rect x="15.3" y="5" width="3.2" height="13" rx="0.6" fill="currentColor" stroke="none"/></svg>',
+    projects:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 6.5 a1.5 1.5 0 0 1 1.5 -1.5 H9 l2 2 h6.5 a1.5 1.5 0 0 1 1.5 1.5 V17 a1.5 1.5 0 0 1 -1.5 1.5 H5 A1.5 1.5 0 0 1 3.5 17 Z"/></svg>'
+  };
+
+  // Remember the last view opened in each multi-view app so returning to it
+  // restores where you were (falls back to the app's default).
+  state.appLastView = { stardrive:"chat", nodes:"graph", vault:"memory", projects:"projects" };
+
+  function railIsOverlay(){ return window.matchMedia && window.matchMedia("(max-width:900px)").matches; }
+
+  // Resolve a raw view request to the actual view an app will show (used by both
+  // navigate and the hashchange guard so they agree).
+  function resolveView(app, view){
+    var def = APP_DEF[app];
+    if(!def || !def.views.length) return null;
+    if(view && def.views.indexOf(view) >= 0) return view;
+    var last = state.appLastView[app] || def.def;
+    return (def.views.indexOf(last) >= 0) ? last : def.def;
   }
 
-  document.querySelectorAll(".tab-btn").forEach(function(btn){
-    btn.addEventListener("click", function(){ switchTab(btn.dataset.view); });
+  function updateTablistSelection(listId, view){
+    var list = $(listId);
+    if(!list) return;
+    list.querySelectorAll(".tab-btn").forEach(function(b){
+      var on = b.dataset.view === view;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+      b.tabIndex = on ? 0 : -1;
+    });
+  }
+
+  function updateSubbar(app, view){
+    var bar = $("appSubbar"), mark = $("appSubmark");
+    var tabsNodes = $("viewTabsNodes"), tabsVault = $("viewTabsVault");
+    var def = APP_DEF[app];
+    if(app === "home"){
+      bar.classList.add("hidden");
+      tabsNodes.hidden = true; tabsVault.hidden = true;
+      return;
+    }
+    bar.classList.remove("hidden");
+    mark.innerHTML = (GLYPH[app] || "") + "<span>" + escapeHtml(def.label) + "</span>" +
+      (def.views.length > 1 && view ? '<span class="submark-tag">· ' + escapeHtml(capitalize(view)) + "</span>" : "");
+    tabsNodes.hidden = (app !== "nodes");
+    tabsVault.hidden = (app !== "vault");
+    if(app === "nodes") updateTablistSelection("viewTabsNodes", view);
+    else if(app === "vault") updateTablistSelection("viewTabsVault", view);
+  }
+
+  function focusMain(){ var m = $("main"); if(m && m.focus){ try{ m.focus(); }catch(e){} } }
+
+  // Central navigation: activate an app (and a view within it), reflect it in the
+  // rail, subbar, header controls, URL hash, and announce it. opts.focus moves
+  // focus into the app (used for rail/palette/card activation, not programmatic).
+  function navigate(app, view, opts){
+    opts = opts || {};
+    if(!APP_DEF[app]) app = "home";
+    var def = APP_DEF[app];
+
+    if(def.views.length){
+      view = resolveView(app, view);
+      state.appLastView[app] = view;
+    } else {
+      view = null;
+    }
+
+    state.app = app;
+    state.view = view || app;   // keep meaningful for the graph "/" shortcut check
+
+    // rail highlight (aria-current="page" on the active app)
+    document.querySelectorAll(".rail-item").forEach(function(b){
+      if(b.dataset.app === app) b.setAttribute("aria-current", "page");
+      else b.removeAttribute("aria-current");
+    });
+
+    // show the right view container; activate/deactivate the force graph
+    document.querySelectorAll(".view").forEach(function(el){ el.classList.remove("active"); });
+    var contId = def.cont || ("view" + capitalize(view));
+    var cont = $(contId);
+    if(cont) cont.classList.add("active");
+    if(view === "graph"){ Graph.activate(); } else { Graph.deactivate(); }
+
+    updateSubbar(app, view);
+
+    // Header search + edge slider are Nodes-only context
+    var isNodes = (app === "nodes");
+    var si = $("searchInput"); if(si) si.classList.toggle("ctx-hidden", !isNodes);
+    var sg = $("edgeSliderGroup"); if(sg) sg.classList.toggle("ctx-hidden", !isNodes);
+
+    // reflect in the hash (#app or #app/view for multi-view apps)
+    var hash = "#" + app + ((def.views.length > 1 && view) ? "/" + view : "");
+    if(location.hash !== hash){
+      try{ location.hash = hash; }catch(e){}
+    }
+
+    // close the mobile rail drawer once an app is chosen
+    if(railIsOverlay()) toggleAppRail(false, true);
+
+    announce(def.label + ((def.views.length > 1 && view) ? " · " + capitalize(view) : "") + " open.");
+
+    if(opts.focus){
+      if(def.views.length > 1 && view){
+        var vt = $("vtab-" + view);
+        if(vt && vt.focus){ try{ vt.focus(); }catch(e){} } else focusMain();
+      } else {
+        focusMain();
+      }
+    }
+  }
+
+  // Back-compat: existing callers say switchTab("chat"/"graph"/…). Route the
+  // view to its owning app. No focus move — callers manage their own focus.
+  function switchTab(v){
+    var app = VIEW_TO_APP[v];
+    if(app) navigate(app, v);
+  }
+
+  // App rail: click to switch apps (moves focus into the app for keyboarders)
+  document.querySelectorAll(".rail-item").forEach(function(btn){
+    btn.addEventListener("click", function(){ navigate(btn.dataset.app, null, {focus:true}); });
+  });
+
+  // Per-app view tablists: click + roving-tabindex arrow-key navigation
+  function wireTablist(listId){
+    var list = $(listId);
+    if(!list) return;
+    var btns = Array.prototype.slice.call(list.querySelectorAll(".tab-btn"));
+    list.addEventListener("click", function(ev){
+      var b = ev.target.closest(".tab-btn"); if(!b) return;
+      navigate(VIEW_TO_APP[b.dataset.view], b.dataset.view);
+    });
+    list.addEventListener("keydown", function(ev){
+      var idx = btns.indexOf(document.activeElement);
+      if(idx < 0) return;
+      var next = -1;
+      if(ev.key === "ArrowRight" || ev.key === "ArrowDown") next = (idx + 1) % btns.length;
+      else if(ev.key === "ArrowLeft" || ev.key === "ArrowUp") next = (idx - 1 + btns.length) % btns.length;
+      else if(ev.key === "Home") next = 0;
+      else if(ev.key === "End") next = btns.length - 1;
+      else return;
+      ev.preventDefault();
+      var b = btns[next];
+      navigate(VIEW_TO_APP[b.dataset.view], b.dataset.view);
+      b.focus();
+    });
+  }
+  wireTablist("viewTabsNodes");
+  wireTablist("viewTabsVault");
+
+  // ---------- Mobile app-rail drawer (< 900px) ----------
+  function applyRailA11y(){
+    var rail = $("appRail");
+    if(!rail) return;
+    if(railIsOverlay() && !rail.classList.contains("open")){
+      rail.inert = true; rail.setAttribute("aria-hidden", "true");
+    } else {
+      rail.inert = false; rail.removeAttribute("aria-hidden");
+    }
+  }
+  function toggleAppRail(force, silent){
+    var rail = $("appRail"), scrim = $("appScrim"), tog = $("railToggle");
+    if(!rail) return;
+    var wasOpen = rail.classList.contains("open");
+    var open = (force != null) ? force : !wasOpen;
+    rail.classList.toggle("open", open);
+    if(scrim) scrim.classList.toggle("show", open);
+    if(tog) tog.setAttribute("aria-expanded", open ? "true" : "false");
+    applyRailA11y();
+    if(silent) return;
+    if(open && !wasOpen && railIsOverlay()){
+      var first = rail.querySelector(".rail-item"); if(first) first.focus();
+    } else if(!open && wasOpen && railIsOverlay()){
+      if(tog) tog.focus();
+    }
+  }
+  $("railToggle").addEventListener("click", function(){ toggleAppRail(); });
+  $("appScrim").addEventListener("click", function(){ toggleAppRail(false); });
+  window.addEventListener("resize", applyRailA11y);
+
+  // ---------- Hub Home launcher ----------
+  function renderHome(){
+    var grid = $("hubGrid");
+    if(!grid) return;
+    var d = state.data;
+    var nSessions = (d && Array.isArray(d.sessions)) ? d.sessions.length : null;
+    var nClusters = (d && Array.isArray(d.clusters)) ? d.clusters.length : null;
+    var nSkills   = Array.isArray(state.skills) ? state.skills.length : null;
+    var nMemory   = Array.isArray(state.memoryList) ? state.memoryList.length : null;
+    var nProjects = Array.isArray(state.projects) ? state.projects.length : null;
+    function num(n){ return (n == null) ? "…" : n; }
+    function plural(n, w){ return num(n) + " " + w + (n === 1 ? "" : "s"); }
+    var cards = [
+      { app:"stardrive", desc:"Read, resume and drive your Claude Code sessions.", stat: plural(nSessions, "session") },
+      { app:"nodes",     desc:"See the shape of your work — the session galaxy.",  stat: plural(nClusters, "cluster") },
+      { app:"vault",     desc:"Everything you have saved — memory and skills.",    stat: plural(nSkills, "skill") + " · " + plural(nMemory, "memory file") },
+      { app:"dashboard", desc:"Usage, activity and cost analytics.",               stat:"soon", soon:true },
+      { app:"projects",  desc:"Filter your sessions by the project they belong to.", stat: plural(nProjects, "project") }
+    ];
+    grid.innerHTML = cards.map(function(c){
+      var def = APP_DEF[c.app];
+      return '<div class="hub-card' + (c.soon ? " soon" : "") + '" role="button" tabindex="0" data-app="' +
+        escapeHtml(c.app) + '">' +
+        '<div class="hub-card-top"><span class="hub-card-glyph">' + GLYPH[c.app] + "</span>" +
+        '<span class="hub-card-name">' + escapeHtml(def.label) + "</span></div>" +
+        '<div class="hub-card-desc">' + escapeHtml(c.desc) + "</div>" +
+        '<span class="hub-card-stat' + (c.soon ? " soon" : "") + '"><span class="dot"></span>' +
+        escapeHtml(c.stat) + "</span></div>";
+    }).join("");
+  }
+  $("hubGrid").addEventListener("click", function(ev){
+    var card = ev.target.closest(".hub-card");
+    if(!card) return;
+    navigate(card.dataset.app, null, {focus:true});
+  });
+
+  // ---------- Hash routing (#app or #app/view) ----------
+  function parseHash(){
+    var h = (location.hash || "").replace(/^#/, "");
+    var parts = h.split("/");
+    var app = parts[0] || "home";
+    var view = parts[1] || null;
+    if(!APP_DEF[app]){ app = "home"; view = null; }
+    return { app: app, view: view };
+  }
+  function applyHash(){
+    var p = parseHash();
+    navigate(p.app, p.view);
+  }
+  // Only react to genuine hash changes (user edit / back-forward). When navigate()
+  // writes the hash itself, the resolved target already matches state → no-op,
+  // which avoids a redundant re-navigation + double announce.
+  window.addEventListener("hashchange", function(){
+    var p = parseHash();
+    var rview = resolveView(p.app, p.view) || p.app;
+    if(p.app === state.app && rview === state.view) return;
+    navigate(p.app, p.view);
   });
 
   // ---------- Chat wiring ----------
@@ -3116,10 +3517,23 @@
 
   function buildPaletteItems(){
     var items = [];
-    var tabs = [["chat","Chat"],["projects","Projects"],["skills","Skills"],["memory","Memory"],
-                ["tiles","Tiles"],["tree","Tree"],["graph","Graph"],["fusion","Fusion"]];
-    tabs.forEach(function(t){
-      items.push({sec:"action", label:"Go to " + t[1], run:function(){ switchTab(t[0]); }});
+    // "Go to <app>" plus deep links into multi-view apps.
+    var dests = [
+      ["home", null, "Home"],
+      ["stardrive", null, "Stardrive"],
+      ["nodes", null, "Nodes"],
+      ["nodes", "graph", "Nodes · Graph"],
+      ["nodes", "tiles", "Nodes · Tiles"],
+      ["nodes", "tree", "Nodes · Tree"],
+      ["nodes", "fusion", "Nodes · Fusion"],
+      ["vault", null, "Vault"],
+      ["vault", "memory", "Vault · Memory"],
+      ["vault", "skills", "Vault · Skills"],
+      ["dashboard", null, "Dashboard"],
+      ["projects", null, "Projects"]
+    ];
+    dests.forEach(function(t){
+      items.push({sec:"action", label:"Go to " + t[2], run:function(){ navigate(t[0], t[1], {focus:true}); }});
     });
     items.push({sec:"action", label:"New session", run:function(){
       switchTab("chat"); showNewSessionPanel(); if(composerEl) composerEl.focus();
@@ -3265,6 +3679,9 @@
       // close the mobile session drawer if it's open
       var sb = $("chatSidebar");
       if(sb && sb.classList.contains("open") && sidebarIsOverlay()){ toggleChatSidebar(false); return; }
+      // close the mobile app-rail drawer if it's open
+      var rail = $("appRail");
+      if(rail && rail.classList.contains("open") && railIsOverlay()){ toggleAppRail(false); return; }
       // clear graph focus / isolate before closing the panel
       if(Graph.anyGraphSelection && Graph.anyGraphSelection()){
         Graph.clearGraphSelection();
@@ -3279,7 +3696,7 @@
 
   // ---------- Delegated clicks: code copy, tool-chip + thinking expand ----------
   var A11Y_ROW_SELECTOR = ".chip,.tree-session,.chat-session-item,.fusion-member," +
-    ".project-card,.skill-row,.memory-row,.neighbor-row,.story-conn,.legend-row";
+    ".project-card,.skill-row,.memory-row,.neighbor-row,.story-conn,.legend-row,.hub-card";
 
   // Toggle a disclosure (tool chip / thinking row) and keep aria-expanded in sync.
   function toggleDisclosure(headEl){
@@ -3327,7 +3744,10 @@
   // Detail panel starts closed → out of the a11y tree + focus order.
   (function(){ var p = $("detailPanel"); if(p){ p.inert = true; p.setAttribute("aria-hidden", "true"); } })();
   applySidebarA11y();
+  applyRailA11y();
   Graph.init();
+  renderHome();                 // seed launcher cards (stats fill in as data loads)
+  applyHash();                  // land on the app/view from the URL hash (default: Home)
   loadData();
   loadProjects();
   loadSkills();
