@@ -24,9 +24,10 @@ It reads `~/.claude/projects` **read-only** and binds **loopback only** by defau
 
 ## Running on a remote desktop — the secure pattern
 
-**Do not** expose Stardrive to your network. It has no authentication yet, and your
-transcripts may contain secrets. Instead, keep it loopback-only on the remote box and
-reach it over SSH — Stardrive never leaves `127.0.0.1`, so nobody but you can touch it.
+**Do not** expose an *unauthenticated* server to your network — your transcripts may
+contain secrets. You have two safe options: keep it loopback-only and reach it over SSH
+(the zero-config route below, where the server never leaves `127.0.0.1`), **or** bind
+your tailnet interface and require a `--token` (see [the Chat feature](#the-chat-run-feature-on-a-remote-box)) — the server refuses to bind a public interface without one.
 
 On the remote desktop, keep it running (pick one):
 
