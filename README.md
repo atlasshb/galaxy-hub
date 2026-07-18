@@ -69,6 +69,28 @@ Your transcripts contain your prompts, code, and possibly secrets. Stardrive tre
 - **Zero external requests** — no CDN, no fonts, no analytics, from either the server or the page. Everything is inline.
 - **`--enable-run` is opt‑in.** Without it the Chat tab is read‑only (browse threads, no prompting). The spawn path uses direct exec — no shell — so a prompt can't inject commands. Never combine `--enable-run` with a non‑loopback `--bind` on an untrusted network.
 
+## Architecture
+
+```mermaid
+flowchart LR
+  S[("~/.claude/projects<br/>*.jsonl transcripts")]
+  subgraph BE["stardrive.py · Python stdlib only"]
+    I["Indexer<br/>parse · TF-IDF · cluster"]
+    D[("data.json")]
+    A["HTTP API<br/>/api/transcript · /api/chat"]
+    I --> D
+  end
+  subgraph FE["index.html · one self-contained page"]
+    V["Tiles · Tree · Graph · Fusion"]
+    C["Chat client"]
+  end
+  S -->|read-only| I
+  S -.->|per request| A
+  D --> V
+  A <-->|SSE stream| C
+  C -->|--enable-run| CLI[["claude CLI"]]
+```
+
 ## How it works
 
 1. Streams the top‑level `*.jsonl` transcripts (capped, malformed‑line tolerant), extracting each session's title, messages, tool calls, and thinking.
