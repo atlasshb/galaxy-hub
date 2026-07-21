@@ -1176,6 +1176,8 @@
     edgeThreshold: 0.30,
     fusionThreshold: 0.80,
     search: "",
+    searchMatches: null,
+    searchRequest: 0,
     selectedIndex: null,
     clusterColor: new Map(),
     neighbors: new Map(),
@@ -1402,6 +1404,7 @@
     for(var i=0;i<terms.length;i++){
       if(String(terms[i]).toLowerCase().indexOf(q) !== -1) return true;
     }
+    if(state.searchMatches && state.searchMatches.has(s.i)) return true;
     return false;
   }
 
@@ -1643,6 +1646,7 @@
       for(var i=0;i<node.terms.length;i++){
         if(String(node.terms[i]).toLowerCase().indexOf(q) !== -1) return true;
       }
+      if(state.searchMatches && state.searchMatches.has(node.i)) return true;
       return false;
     }
 
@@ -4512,9 +4516,27 @@
 
   $("searchInput").addEventListener("input", function(){
     state.search = $("searchInput").value;
+    state.searchMatches = null;
     renderTiles();
     renderTree();
     renderFusion();
+    var request = ++state.searchRequest;
+    clearTimeout(state.searchTimer);
+    var query = state.search.trim();
+    if(!query || !state.data || !state.data.searchIndex) return;
+    state.searchTimer = setTimeout(function(){
+      fetch("/search?q=" + encodeURIComponent(query), {cache:"no-store"})
+        .then(function(res){ return res.ok ? res.json() : null; })
+        .then(function(result){
+          if(request !== state.searchRequest || !result || result.query !== query) return;
+          state.searchMatches = new Set((result.matches || []).map(function(m){ return m.i; }));
+          renderTiles();
+          renderTree();
+          renderFusion();
+          if(Graph.rebuildSprings) Graph.rebuildSprings();
+        })
+        .catch(function(){ /* local title/term filtering remains available */ });
+    }, 180);
   });
 
   $("edgeSlider").addEventListener("input", function(){
