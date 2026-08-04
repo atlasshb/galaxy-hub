@@ -7,7 +7,8 @@ Type=simple
 User=root
 WorkingDirectory=/opt/atlas/galaxyhub-staging
 Environment=GH_TOKEN_FILE=/opt/atlas/galaxyhub-staging/.token
-Environment=LITELLM_BASE_URL=http://127.0.0.1:4110/v1
+EnvironmentFile=-/opt/atlas/router-secrets.env
+Environment=LITELLM_BASE_URL=http://100.93.16.81:4100/v1
 ExecStart=/bin/sh -c '/usr/bin/python3 /opt/atlas/galaxyhub-staging/stardrive.py --bind 127.0.0.1 --port 8879 --token "$(cat ${GH_TOKEN_FILE})" --enable-run --max-runs 8'
 Restart=on-failure
 RestartSec=3
