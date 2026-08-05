@@ -34,6 +34,19 @@ git reset --hard --quiet origin/"$BRANCH"
 echo ">> py_compile stardrive.py"
 python3 -m py_compile stardrive.py
 
+# Install the systemd unit for this env from the repo (backup the previous).
+if [ -f "$DIR/deploy/atlas-galaxyhub.service" ]; then
+  UNIT_FILE="$DIR/deploy/atlas-galaxyhub.service"
+else
+  UNIT_FILE="$DIR/deploy/atlas-galaxyhub-$ENV.service"
+fi
+if [ -f "$UNIT_FILE" ]; then
+  cp "/etc/systemd/system/$UNIT.service" "/etc/systemd/system/$UNIT.service.bak-predeploy" 2>/dev/null || true
+  install -m 644 "$UNIT_FILE" "/etc/systemd/system/$UNIT.service"
+  systemctl daemon-reload
+  echo ">> installed unit from $UNIT_FILE"
+fi
+
 # Ensure a token file exists (gitignored, kept local per env).
 TOKEN_FILE="$DIR/.token"
 if [ ! -s "$TOKEN_FILE" ]; then
