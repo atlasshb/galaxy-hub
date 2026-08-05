@@ -27,6 +27,7 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit, parse_qs
+import urllib.request
 
 # ---------------------------------------------------------------------------
 # Paths / constants
@@ -106,6 +107,13 @@ RESERVED_SLOTS = 0  # L3: chat slots reserved between the cap check and pid regi
 
 ENABLE_RUN = False
 RUN_TIMEOUT = DEFAULT_RUN_TIMEOUT
+
+# v4: omnirouter integration — LiteLLM (Atlas "omnirouter") Anthropic/OpenAI
+# compatible gateway. Overridable via env so the web chat can route through
+# DevPass / OpenCode Go / local Ollama behind one key.
+LITELLM_BASE_URL = os.environ.get("LITELLM_BASE_URL", "http://127.0.0.1:4000/v1")
+LITELLM_MASTER_KEY = os.environ.get("LITELLM_MASTER_KEY", "")
+LITELLM_MODELS_TIMEOUT = 4  # seconds; router listing is best-effort, never blocks
 
 # Phase 1: optional bearer-token auth. None = no auth (loopback-only mode,
 # unchanged behavior). Set by --token; never logged.
@@ -983,6 +991,60 @@ def resolve_claude_binary():
 
 
 # ---------------------------------------------------------------------------
+# v4: engine abstraction — opencode is a first-class chat engine alongside
+# claude. Same resolve pattern: real binary first, npm shim last resort.
+# ---------------------------------------------------------------------------
+
+
+def resolve_opencode_binary():
+    """Returns (path, needs_shell) or (None, False) if no usable binary found."""
+    if os.name == "posix":
+        w = shutil.which("opencode")
+        return (w, False) if w else (None, False)
+
+    shim_candidates = []
+    for name in ("opencode.cmd", "opencode.exe", "opencode", "opencode.ps1"):
+        w = shutil.which(name)
+        if w and w not in shim_candidates:
+            shim_candidates.append(w)
+    for shim in shim_candidates:
+        if shim.lower().endswith(".exe"):
+            return shim, False
+    if shim_candidates:
+        return shim_candidates[0], True
+    return None, False
+
+
+def detect_engines():
+    """Report which agent engines are installed and usable on this host."""
+    result = {}
+    for name, resolver in (("claude", resolve_claude_binary), ("opencode", resolve_opencode_binary)):
+        exe, needs_shell = resolver()
+        if exe:
+            result[name] = {"available": True, "needs_shell": needs_shell}
+        else:
+            result[name] = {"available": False, "needs_shell": False}
+    result["codex"] = {"available": bool(shutil.which("codex")), "needs_shell": False}
+    return result
+
+
+def list_litellm_models():
+    """Best-effort catalog from the LiteLLM omnirouter. Never raises."""
+    try:
+        req = urllib.request.Request(LITELLM_BASE_URL.rstrip("/") + "/models")
+        if LITELLM_MASTER_KEY:
+            req.add_header("Authorization", "Bearer " + LITELLM_MASTER_KEY)
+        with urllib.request.urlopen(req, timeout=LITELLM_MODELS_TIMEOUT) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        ids = sorted(
+            m.get("id") for m in data.get("data", []) if isinstance(m, dict) and m.get("id")
+        )
+        return {"ok": True, "base_url": LITELLM_BASE_URL, "count": len(ids), "models": ids}
+    except Exception as e:
+        return {"ok": False, "base_url": LITELLM_BASE_URL, "error": str(e), "models": []}
+
+
+# ---------------------------------------------------------------------------
 # v3.1: process-tree termination for chat children
 #
 # On POSIX the CLI is spawned as its own session / process-group leader
@@ -1498,6 +1560,20 @@ class StardriveHandler(BaseHTTPRequestHandler):
             self._send_json({"error": "invalid permissionMode"}, status=400)
             return
 
+        # v4: engine abstraction — claude (default) or opencode, plus an optional
+        # model pin passed straight to the engine (provider/model for opencode,
+        # or ANTHROPIC_MODEL at server start for claude).
+        engine = body.get("engine") or "auto"
+        if engine == "auto":
+            engine = "claude"
+        if engine not in ("claude", "opencode"):
+            self._send_json({"error": "invalid engine (claude|opencode|auto)"}, status=400)
+            return
+        model = body.get("model")
+        if model is not None and (not isinstance(model, str) or not model.strip()):
+            self._send_json({"error": "invalid model"}, status=400)
+            return
+
         if cwd_req:
             if not isinstance(cwd_req, str) or not os.path.isdir(cwd_req):
                 self._send_json({"error": "cwd does not exist"}, status=400)
@@ -1506,9 +1582,14 @@ class StardriveHandler(BaseHTTPRequestHandler):
         else:
             run_cwd = os.path.expanduser("~")
 
-        exe, needs_shell = resolve_claude_binary()
+        if engine == "opencode":
+            exe, needs_shell = resolve_opencode_binary()
+            exe_label = "opencode"
+        else:
+            exe, needs_shell = resolve_claude_binary()
+            exe_label = "claude"
         if not exe:
-            self._send_json({"error": "claude binary not found"}, status=500)
+            self._send_json({"error": "%s binary not found" % exe_label}, status=500)
             return
 
         # L3: atomically reserve a slot under the lock so concurrent requests
@@ -1519,13 +1600,24 @@ class StardriveHandler(BaseHTTPRequestHandler):
                 return
             RESERVED_SLOTS += 1
 
-        # L1: pass resume as a single --resume=<value> token so a dash-leading
-        # value can never be re-read as a separate flag.
-        argv = [exe, "-p", prompt, "--output-format", "stream-json", "--verbose"]
-        if resume:
-            argv += ["--resume=%s" % resume]
-        if perm_mode != "default":
-            argv += ["--permission-mode", perm_mode]
+        if engine == "opencode":
+            # opencode run: non-interactive, JSON events on stdout, cwd via --dir.
+            argv = [exe, "run", "--format", "json"]
+            if model:
+                argv += ["--model", model]
+            if resume:
+                argv += ["--session", resume]
+            if perm_mode != "default":
+                argv += ["--auto"]
+            argv += ["--dir", run_cwd, prompt]
+        else:
+            # L1: pass resume as a single --resume=<value> token so a dash-leading
+            # value can never be re-read as a separate flag.
+            argv = [exe, "-p", prompt, "--output-format", "stream-json", "--verbose"]
+            if resume:
+                argv += ["--resume=%s" % resume]
+            if perm_mode != "default":
+                argv += ["--permission-mode", perm_mode]
 
         creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         popen_kwargs = dict(
@@ -1568,13 +1660,15 @@ class StardriveHandler(BaseHTTPRequestHandler):
             ACTIVE_PROCS[proc.pid] = proc
             RUNS[proc.pid] = {
                 "pid": proc.pid,
+                "engine": engine,
+                "model": model,
                 "prompt": prompt[:120],  # never store the prompt beyond the cap
                 "cwd": run_cwd,
                 "resume": resume,
                 "started": started,
                 "status": "running",
             }
-        logger.info("chat spawn pid=%s resume=%s cwd=%s", proc.pid, resume, run_cwd)
+        logger.info("chat spawn engine=%s pid=%s resume=%s cwd=%s", engine, proc.pid, resume, run_cwd)
 
         timed_out = {"v": False}
 
@@ -1593,7 +1687,7 @@ class StardriveHandler(BaseHTTPRequestHandler):
             # v3: announce the child pid as the very first SSE event so the
             # client can target POST /api/chat/stop.
             try:
-                self._sse_send('data: {"type":"stardrive_started","pid":%d}\n\n' % proc.pid)
+                self._sse_send('data: {"type":"stardrive_started","pid":%d,"engine":"%s"}\n\n' % (proc.pid, engine))
             except OSError:
                 client_gone = True
                 logger.info("client disconnected from /api/chat pid=%s", proc.pid)
@@ -1725,6 +1819,12 @@ class StardriveHandler(BaseHTTPRequestHandler):
                 self._send_json(
                     {"count": n, "active": n, "max": MAX_CHAT_PROCS, "runs": runs}
                 )
+
+            elif path == "/api/engines":
+                self._send_json(detect_engines())
+
+            elif path == "/api/router/models":
+                self._send_json(list_litellm_models())
 
             else:
                 self._send_json({"error": "not found"}, status=404)
