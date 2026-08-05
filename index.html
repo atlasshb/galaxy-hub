@@ -1991,7 +1991,7 @@
   }
 
   function loadData(){
-    return fetch("/data.json", {cache:"no-store"}).then(function(res){
+    return fetch("data.json", {cache:"no-store"}).then(function(res){
       if(!res.ok) throw new Error("HTTP " + res.status);
       return res.json();
     }).then(function(json){
@@ -2242,7 +2242,7 @@
   function loadTranscript(project, id){
     var container = $("chatTranscript");
     container.innerHTML = '<div class="stats" style="padding:14px;">Loading transcript…</div>';
-    apiGet("/api/transcript?project=" + encodeURIComponent(project) + "&id=" + encodeURIComponent(id))
+    apiGet("api/transcript?project=" + encodeURIComponent(project) + "&id=" + encodeURIComponent(id))
       .then(function(t){ renderTranscript(t); })
       .catch(function(err){
         container.innerHTML = '<div class="stats" style="padding:14px;">Failed to load transcript — ' +
@@ -2743,7 +2743,7 @@
   // Shared stop primitive: signal a pid via /api/chat/stop. Reused by the chat
   // composer's Stop and by every Orchestration run card's Stop button.
   function postStop(pid){
-    return fetch("/api/chat/stop", {
+    return fetch("api/chat/stop", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({pid: pid})
@@ -2854,7 +2854,7 @@
   // in its own idiom (chat banner vs. per-card status). Not forked — one path.
   function startChatRun(ctx, payload, handlers){
     handlers = handlers || {};
-    return fetch("/api/chat", {
+    return fetch("api/chat", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify(payload)
@@ -3395,7 +3395,7 @@
       updateOrchRemoveButtons();
       updateOrchWarning();
     }
-    apiGet("/api/chat/active").then(function(j){
+    apiGet("api/chat/active").then(function(j){
       if(j && typeof j.max === "number" && j.max > 0) o.max = j.max;
       var runs = (j && Array.isArray(j.runs)) ? j.runs : [];
       var known = {};
@@ -3413,7 +3413,7 @@
 
   // ---------- Projects ----------
   function loadProjects(){
-    return apiGet("/api/projects").then(function(list){
+    return apiGet("api/projects").then(function(list){
       state.projects = Array.isArray(list) ? list : [];
       renderProjects();
       populateNewSessionCwdOptions();
@@ -3454,7 +3454,7 @@
 
   // ---------- Skills ----------
   function loadSkills(){
-    return apiGet("/api/skills").then(function(j){
+    return apiGet("api/skills").then(function(j){
       state.skills = (j && Array.isArray(j.skills)) ? j.skills : [];
       renderSkills();
       renderHome();
@@ -3489,7 +3489,7 @@
 
   // ---------- Memory ----------
   function loadMemoryList(){
-    return apiGet("/api/memory").then(function(res){
+    return apiGet("api/memory").then(function(res){
       state.memoryList = Array.isArray(res) ? res : (res && Array.isArray(res.items) ? res.items : []);
       renderMemoryList();
       renderHome();
@@ -3524,7 +3524,7 @@
     if(rowEl) rowEl.classList.add("active");
     var contentEl = $("memoryContent");
     contentEl.innerHTML = '<div class="stats" style="padding:14px;">Loading…</div>';
-    fetchText("/api/memory/read?file=" + encodeURIComponent(file)).then(function(text){
+    fetchText("api/memory/read?file=" + encodeURIComponent(file)).then(function(text){
       // Spec: raw markdown body. Tolerate a JSON-wrapped {"content": "..."} response too.
       var body = text;
       var trimmed = text.trim();
@@ -4007,7 +4007,7 @@
     state.usageLoading = true;
     state.usageError = null;
     if(!state.usageLoaded) renderDashboard();   // first load → "charting…"
-    apiGet("/api/usage").then(function(u){
+    apiGet("api/usage").then(function(u){
       state.usage = (u && typeof u === "object") ? u : {};
       state.usageLoaded = true;
       state.usageError = null;
@@ -4538,7 +4538,7 @@
     var orig = btn.textContent;
     btn.disabled = true;
     btn.textContent = "Refreshing…";
-    fetch("/refresh", {method:"POST"}).then(function(res){
+    fetch("refresh", {method:"POST"}).then(function(res){
       return res.json().catch(function(){ return {}; }).then(function(j){
         if(!res.ok || j.ok === false) throw new Error(j.error || ("HTTP " + res.status));
         return loadData().then(function(){
