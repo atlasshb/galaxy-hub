@@ -35,10 +35,12 @@ echo ">> py_compile stardrive.py"
 python3 -m py_compile stardrive.py
 
 # Install the systemd unit for this env from the repo (backup the previous).
-if [ -f "$DIR/deploy/atlas-galaxyhub.service" ]; then
-  UNIT_FILE="$DIR/deploy/atlas-galaxyhub.service"
-else
+# Prefer the env-specific unit file (atlas-galaxyhub-<env>.service); prod
+# falls back to deploy/atlas-galaxyhub.service.
+if [ -f "$DIR/deploy/atlas-galaxyhub-$ENV.service" ]; then
   UNIT_FILE="$DIR/deploy/atlas-galaxyhub-$ENV.service"
+else
+  UNIT_FILE="$DIR/deploy/atlas-galaxyhub.service"
 fi
 if [ -f "$UNIT_FILE" ]; then
   cp "/etc/systemd/system/$UNIT.service" "/etc/systemd/system/$UNIT.service.bak-predeploy" 2>/dev/null || true
