@@ -26,7 +26,7 @@ Flow: feature → `dev` → PR → `staging` → validate on galaxy-staging → 
 | Router | LiteLLM (`atlas-litellm`) = the Atlas "omnirouter" | one key, many upstreams: DevPass LLM Gateway, OpenCode Go x2, Ollama local | `/api/router/models` surfaces the catalog |
 | Web client | opencode `serve` / `web` / `attach` | browser UI + local TUI attached to a remote server | opencode |
 | Mobile client | happy (`npm i -g happy`) | phone/web wrapper over `claude`/`codex` with E2E encryption | slopus/happy |
-| Assistant gateway | OpenClaw Gateway | always-on agent, voice/mobile, scheduled skills | openclaw |
+| Assistant gateway | OpenClaw Gateway | always-on agent, voice/mobile, scheduled skills. Foundation platform (CLI + Control UI + 10 Atlas agents); wired to LiteLLM omnirouter via a `litellm` provider; exposed behind Authentik SSO at `hub.atlascorporation.org/openclaw/` | openclaw |
 | IDE client | Cline (VS Code) | window-per-project agent | cline |
 | Memory | Nodes + Fusion graph · second-brain MCP | session galaxy map + knowledge layer | this repo + MCP |
 | Swarm / release | Orchestration board · swarm-leader · ruflo release-swarm | parallel runs, release automation | this repo + ruvnet/ruflo |
