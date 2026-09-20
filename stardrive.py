@@ -43,6 +43,14 @@ LOG_FILE = os.path.join(APP_DIR, "stardrive.log")
 TITLES_OVERRIDE = os.path.join(APP_DIR, "titles_override.json")
 INDEX_HTML = os.path.join(APP_DIR, "index.html")
 
+# Corpus mode (2026-09-16): normalized multi-source thread corpus
+# (<corpus>/<device>/<source>/<thread>.json, schema 1). Set by --corpus.
+CORPUS_DIR = None
+LOCAL_DEVICE = "local"
+CORPUS_PROJECT_PREFIX = "corpus."
+NONLOCAL_IDS = frozenset()  # corpus-only session ids in the current index (never resumable)
+INDEX_LOCK = threading.Lock()  # serializes run_index (POST /refresh vs. reindex timer)
+
 DEFAULT_BIND = "127.0.0.1"
 DEFAULT_PORT = 8877
 BIND_FALLBACK = "127.0.0.1"
@@ -111,9 +119,20 @@ RUN_TIMEOUT = DEFAULT_RUN_TIMEOUT
 # v4: omnirouter integration — LiteLLM (Atlas "omnirouter") Anthropic/OpenAI
 # compatible gateway. Overridable via env so the web chat can route through
 # DevPass / OpenCode Go / local Ollama behind one key.
-LITELLM_BASE_URL = os.environ.get("LITELLM_BASE_URL", "http://127.0.0.1:4000/v1")
+LITELLM_BASE_URL = os.environ.get("LITELLM_BASE_URL", "http://127.0.0.1:4100/v1")
 LITELLM_MASTER_KEY = os.environ.get("LITELLM_MASTER_KEY", "")
 LITELLM_MODELS_TIMEOUT = 4  # seconds; router listing is best-effort, never blocks
+
+# v5: GLM (Z.ai Coding Plan) direct routing for the claude engine only. When a
+# request pins engine=claude with model="glm-*", the claude CLI is spawned with
+# ANTHROPIC_BASE_URL pointed at z.ai's Anthropic-compatible endpoint instead of
+# the LiteLLM omnirouter (the omnirouter's /v1/messages mapping for GLM 404s).
+# The API key is re-read from the secrets file on every spawn (not cached at
+# import time) so a rotated key takes effect without a service restart.
+GLM_ANTHROPIC_BASE_URL = os.environ.get("GALAXY_ANTHROPIC_BASE_URL", "http://127.0.0.1:4100")
+GLM_ZAI_ANTHROPIC_BASE_URL = "https://api.z.ai/api/anthropic"
+GLM_SMALL_FAST_MODEL = "glm-4.5-air"
+ROUTER_SECRETS_FILE = "/opt/atlas/router-secrets.env"
 
 # Phase 1: optional bearer-token auth. None = no auth (loopback-only mode,
 # unchanged behavior). Set by --token; never logged.
@@ -363,6 +382,157 @@ def load_titles_override():
     except Exception as e:
         logger.warning("titles_override.json unreadable: %s", e)
     return {}
+
+
+# ---------------------------------------------------------------------------
+# Corpus mode: one normalized thread json -> the same parsed-record shape as
+# parse_session_file (identical doc rules: first MAX_DOC_MSGS user messages,
+# capped MAX_DOC_CHARS, title prepended 3x).
+# ---------------------------------------------------------------------------
+
+
+def _iso_to_z(s):
+    if not isinstance(s, str) or not s.strip():
+        return None
+    try:
+        dt = datetime.fromisoformat(s.strip().replace("Z", "+00:00"))
+    except Exception:
+        try:
+            dt = datetime.strptime(s.strip()[:19], "%Y-%m-%dT%H:%M:%S")
+        except Exception:
+            return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _corpus_title(d, first_user_text, stem, override_title):
+    native = d.get("title")
+    if override_title:
+        return clean_text(override_title)
+    if isinstance(native, str) and native.strip():
+        return clean_text(native)
+    if first_user_text:
+        return clean_text(first_user_text)
+    return stem[:8]
+
+
+def parse_corpus_thread(path, override_title=None):
+    with open(path, "r", encoding="utf-8-sig", errors="replace") as f:
+        d = json.load(f)
+    if not isinstance(d, dict):
+        raise ValueError("thread file is not a json object")
+    stem = os.path.splitext(os.path.basename(path))[0]
+    msgs = d.get("messages")
+    msgs = msgs if isinstance(msgs, list) else []
+    first_user_text = None
+    doc_parts = []
+    doc_chars = 0
+    collected = 0
+    for m in msgs:
+        if not isinstance(m, dict) or m.get("role") != "user":
+            continue
+        text = m.get("text")
+        if not isinstance(text, str) or not text or text.lstrip().startswith("<system-reminder>"):
+            continue
+        if first_user_text is None:
+            first_user_text = text
+        if collected < MAX_DOC_MSGS and doc_chars < MAX_DOC_CHARS:
+            piece = text[: MAX_DOC_CHARS - doc_chars]
+            if piece:
+                doc_parts.append(piece)
+                doc_chars += len(piece)
+                collected += 1
+        else:
+            break
+    title = _corpus_title(d, first_user_text, stem, override_title)
+    doc = ((title + " ") * 3) + " ".join(doc_parts)
+    size_bytes = os.path.getsize(path)
+    mtime = _iso_to_z(d.get("updated")) or _iso_to_z(d.get("created")) or datetime.fromtimestamp(
+        os.path.getmtime(path), tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    n_msgs = d.get("n_messages")
+    if not isinstance(n_msgs, int) or isinstance(n_msgs, bool):
+        n_msgs = len(msgs)
+    tid = d.get("id") if isinstance(d.get("id"), str) else stem
+    proj = d.get("project") if isinstance(d.get("project"), str) else None
+    return {
+        "tid": tid,
+        "title": title,
+        "cwd": proj,
+        "msgs": n_msgs,
+        "kb": int(round(size_bytes / 1024.0)),
+        "mtime": mtime,
+        "doc": doc,
+    }
+
+
+def resolve_corpus_thread(project, sid):
+    """project = 'corpus.<device>.<source>' -> realpath of <CORPUS_DIR>/<device>/<source>/<sid>.json,
+    or None if any component is unsafe or the path escapes CORPUS_DIR."""
+    if not CORPUS_DIR or not project.startswith(CORPUS_PROJECT_PREFIX):
+        return None
+    parts = project[len(CORPUS_PROJECT_PREFIX):].split(".")
+    if len(parts) != 2 or not all(is_safe_name(p) for p in parts) or not is_safe_name(sid):
+        return None
+    real_root = os.path.realpath(CORPUS_DIR)
+    real_path = os.path.realpath(os.path.join(CORPUS_DIR, parts[0], parts[1], sid + ".json"))
+    if real_path.startswith(real_root + os.sep):
+        return real_path
+    return None
+
+
+def build_corpus_transcript(path, session_id, override_title=None):
+    with open(path, "r", encoding="utf-8-sig", errors="replace") as f:
+        d = json.load(f)
+    if not isinstance(d, dict):
+        raise ValueError("thread file is not a json object")
+    messages = []
+    total_chars = 0
+    truncated = False
+    first_user_text = None
+    for m in d.get("messages") if isinstance(d.get("messages"), list) else []:
+        if not isinstance(m, dict):
+            continue
+        role = m.get("role")
+        text = m.get("text")
+        if role not in ("user", "assistant") or not isinstance(text, str):
+            continue
+        if role == "user" and first_user_text is None and text:
+            first_user_text = text
+        if len(messages) >= TRANSCRIPT_MAX_MSGS or total_chars >= TRANSCRIPT_MAX_CHARS:
+            truncated = True
+            break
+        remaining = TRANSCRIPT_MAX_CHARS - total_chars
+        if len(text) > remaining:
+            text = text[:remaining]
+            truncated = True
+        ts = m.get("ts")
+        messages.append({"role": role, "text": text, "ts": ts if isinstance(ts, str) else None})
+        total_chars += len(text)
+    title = _corpus_title(d, first_user_text, session_id, override_title)
+    return {
+        "id": session_id,
+        "title": title,
+        "messages": messages,
+        "truncated": truncated,
+        "source": d.get("source"),
+        "device": d.get("device"),
+        "readOnly": True,
+    }
+
+
+def reindex_loop(minute):
+    """Periodic reindex at HH:<minute> every hour (after the thread collectors)."""
+    while True:
+        now = datetime.now()
+        nxt = now.replace(minute=minute, second=0, microsecond=0)
+        if nxt <= now:
+            nxt += timedelta(hours=1)
+        time.sleep(max(1.0, (nxt - now).total_seconds()))
+        try:
+            run_index()
+        except Exception:
+            logger.exception("scheduled reindex failed")
 
 
 # ---------------------------------------------------------------------------
@@ -1015,6 +1185,69 @@ def resolve_opencode_binary():
     return None, False
 
 
+def read_glm_api_key():
+    """Best-effort re-read of GLM_API_KEY from the secrets file at spawn time.
+    Never raises, never logs the value. Returns None if missing/unreadable."""
+    try:
+        with open(ROUTER_SECRETS_FILE, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, _, v = line.partition("=")
+                if k.strip() == "GLM_API_KEY":
+                    v = v.strip().strip('"').strip("'")
+                    return v or None
+    except OSError:
+        logger.warning("could not read %s for GLM_API_KEY", ROUTER_SECRETS_FILE)
+    return None
+
+
+def read_router_secret(name):
+    """Best-effort re-read of a single key from the router secrets file at spawn
+    time. Never raises, never logs the value. Returns None if missing."""
+    try:
+        with open(ROUTER_SECRETS_FILE, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, _, v = line.partition("=")
+                if k.strip() == name:
+                    v = v.strip().strip('"').strip("'")
+                    return v or None
+    except OSError:
+        logger.warning("could not read %s for %s", ROUTER_SECRETS_FILE, name)
+    return None
+
+
+def glm_anthropic_endpoint():
+    """Pick the Anthropic-compatible endpoint for a glm-* claude spawn.
+
+    Prefers LiteLLM, because LiteLLM carries the fallback chain
+    (glm -> mistral -> free-or -> local-qwen). Going straight to z.ai leaves
+    galaxy with no fallback at all, so a GLM rate-limit takes the whole surface
+    down. Falls back to z.ai direct only when LiteLLM does not answer.
+
+    Returns (base_url, auth_token, which) or (None, None, None).
+    """
+    key = read_router_secret("LITELLM_MASTER_KEY") or os.environ.get("LITELLM_MASTER_KEY") or ""
+    if key:
+        try:
+            req = urllib.request.Request(
+                GLM_ANTHROPIC_BASE_URL.rstrip("/") + "/v1/models",
+                headers={"Authorization": "Bearer " + key},
+            )
+            with urllib.request.urlopen(req, timeout=3) as r:
+                if r.status == 200:
+                    return GLM_ANTHROPIC_BASE_URL, key, "litellm"
+        except Exception as exc:
+            logger.warning("LiteLLM anthropic endpoint unreachable (%s); using z.ai direct", exc)
+    gk = read_glm_api_key()
+    if gk:
+        return GLM_ZAI_ANTHROPIC_BASE_URL, gk, "zai"
+    return None, None, None
+
 def detect_engines():
     """Report which agent engines are installed and usable on this host."""
     result = {}
@@ -1256,8 +1489,379 @@ def top_terms_weighted(vec, k=25):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# J2 (2026-09-16): fused dossiers — non-destructive. After each index run the
+# fusion groups (union-find over edges >= fuse threshold, same rule as the UI
+# Fusion tab) are written as one read-only dossier per group to
+# FUSED_DIR/<group_id>.json (root 700/600), plus _index.json (list + stats)
+# and _topics.json (looser >= 0.30 clusters, member lists only, so every
+# thread is reachable from some topic). Source threads are never modified.
+# ---------------------------------------------------------------------------
+import hashlib
+
+FUSED_DIR = os.environ.get("STARDRIVE_FUSED_DIR") or "/opt/atlas/threads/fused"
+FUSED_SETTINGS = os.path.join(FUSED_DIR, "_settings.json")
+FUSED_INDEX = os.path.join(FUSED_DIR, "_index.json")
+FUSED_TOPICS = os.path.join(FUSED_DIR, "_topics.json")
+FUSED_DEFAULT_THRESHOLD = 0.80
+FUSED_TOPIC_THRESHOLD = 0.30  # == cluster_sessions() union threshold
+FUSED_MSG_CHARS = 4000
+FUSED_GID_RE = re.compile(r"^[0-9a-f]{40}$")
+_FUSED_WS_RE = re.compile(r"\s+")
+_FUSED_REINDEX_PENDING = threading.Event()
+_FUSED_REDACT = None
+
+
+def _fused_redact_fn():
+    """corpus_lib.redact for --root (unredacted) sessions; None if unavailable."""
+    global _FUSED_REDACT
+    if _FUSED_REDACT is None:
+        try:
+            if "/opt/atlas/threads" not in sys.path:
+                sys.path.append("/opt/atlas/threads")
+            import corpus_lib  # noqa: E402
+            _FUSED_REDACT = corpus_lib.redact
+        except Exception:
+            logger.warning("fused: corpus_lib.redact unavailable; local-session messages omitted")
+            _FUSED_REDACT = False
+    return _FUSED_REDACT or None
+
+
+def _fused_mkdir():
+    os.makedirs(FUSED_DIR, exist_ok=True)
+    try:
+        os.chmod(FUSED_DIR, 0o700)
+    except OSError:
+        pass
+
+
+def _fused_write_json(path, obj):
+    tmp = path + ".tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(obj, f, ensure_ascii=False, separators=(",", ":"))
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, path)
+
+
+def load_fuse_threshold():
+    try:
+        with open(FUSED_SETTINGS, "r", encoding="utf-8") as f:
+            v = json.load(f).get("fuse_threshold")
+        if isinstance(v, (int, float)) and not isinstance(v, bool) and 0.5 <= v <= 0.95:
+            return round(float(v), 2)
+    except Exception:
+        pass
+    return FUSED_DEFAULT_THRESHOLD
+
+
+def save_fuse_threshold(v):
+    _fused_mkdir()
+    _fused_write_json(FUSED_SETTINGS, {
+        "fuse_threshold": round(float(v), 2),
+        "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    })
+
+
+def _fused_member_path(s):
+    if s.get("local"):
+        return resolve_under_store(s["project"], s["id"] + ".jsonl")
+    return resolve_corpus_thread(s["project"], s["id"])
+
+
+def _fused_load_member(s, path):
+    """-> (created, updated, messages[{role,text,ts}], truncated). Messages are
+    user/assistant natural-language text only (corpus threads are already
+    normalized + redacted; --root sessions are redacted here)."""
+    msgs = []
+    created = updated = None
+    truncated = False
+    if s.get("local"):
+        red = _fused_redact_fn()
+        tr = build_transcript(path, s["id"])
+        truncated = bool(tr.get("truncated"))
+        for m in tr.get("messages") or []:
+            role, text = m.get("role"), m.get("text")
+            if role not in ("user", "assistant") or not isinstance(text, str) or not text.strip():
+                continue
+            if text.lstrip().startswith("<system-reminder>"):
+                continue
+            ts = _iso_to_z(m.get("ts"))
+            if ts:
+                created = created or ts
+                updated = ts
+            if red is None:
+                truncated = True
+                continue
+            msgs.append({"role": role, "text": red(text[:FUSED_MSG_CHARS]), "ts": ts})
+    else:
+        with open(path, "r", encoding="utf-8-sig", errors="replace") as f:
+            d = json.load(f)
+        if not isinstance(d, dict):
+            raise ValueError("thread file is not a json object")
+        created = _iso_to_z(d.get("created"))
+        updated = _iso_to_z(d.get("updated"))
+        for m in d.get("messages") if isinstance(d.get("messages"), list) else []:
+            if not isinstance(m, dict):
+                continue
+            role, text = m.get("role"), m.get("text")
+            if role not in ("user", "assistant") or not isinstance(text, str) or not text.strip():
+                continue
+            msgs.append({"role": role, "text": text[:FUSED_MSG_CHARS], "ts": _iso_to_z(m.get("ts"))})
+    created = created or s.get("mtime")
+    updated = updated or s.get("mtime")
+    return created, updated, msgs, truncated
+
+
+def _fused_components(n, edges, threshold):
+    parent = list(range(n))
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for i, j, w in edges:
+        if w >= threshold:
+            ri, rj = find(i), find(j)
+            if ri != rj:
+                parent[ri] = rj
+    groups = defaultdict(list)
+    for idx in range(n):
+        groups[find(idx)].append(idx)
+    return [g for g in groups.values() if len(g) > 1]
+
+
+def _fused_gid(member_ids):
+    return hashlib.sha1("\n".join(sorted(member_ids)).encode("utf-8")).hexdigest()
+
+
+def _fused_centroid_terms(group, vectors, k=5):
+    acc = defaultdict(float)
+    for idx in group:
+        for t, w in (vectors[idx] or {}).items():
+            acc[t] += w
+    ordered = sorted(acc.items(), key=lambda kv: (-kv[1], kv[0]))
+    return [t for t, _ in ordered[:k]]
+
+
+def _fused_build_dossier(gid, threshold, group, sess_list, title_terms, sig):
+    members = []
+    loaded = []
+    for idx in group:
+        s = sess_list[idx]
+        path = _fused_member_path(s)
+        entry = {
+            "id": s["id"], "project": s["project"], "source": s.get("source"),
+            "device": s.get("device"), "title": s.get("title"), "local": bool(s.get("local")),
+            "created": None, "updated": None, "n_messages": 0,
+        }
+        msgs = []
+        if path and os.path.isfile(path):
+            try:
+                c, u, msgs, trunc = _fused_load_member(s, path)
+                entry["created"], entry["updated"] = c, u
+                if trunc:
+                    entry["truncated"] = True
+            except Exception as e:
+                logger.warning("fused: cannot load member %s: %s", s["id"], e)
+                entry["error"] = "unreadable"
+        else:
+            entry["error"] = "missing"
+        entry["n_messages"] = len(msgs)
+        members.append(entry)
+        loaded.append(msgs)
+    order = sorted(range(len(members)), key=lambda k: (members[k]["created"] or "", members[k]["id"]))
+    members = [members[k] for k in order]
+    loaded = [loaded[k] for k in order]
+    for k, m in enumerate(members):
+        m["tag"] = "T%d" % (k + 1)
+
+    entries = []
+    for mi, msgs in enumerate(loaded):
+        last = members[mi]["created"] or ""
+        for k, m in enumerate(msgs):
+            if m["ts"]:
+                last = m["ts"]
+            entries.append((m["ts"] or last, mi, k))
+    entries.sort()
+    timeline = []
+    seen = {}
+    dups = 0
+    dups_cross = 0
+    for _key, mi, k in entries:
+        m = loaded[mi][k]
+        tag = members[mi]["tag"]
+        norm = _FUSED_WS_RE.sub(" ", m["text"]).strip().lower()
+        h = hashlib.sha1((m["role"] + "\0" + norm).encode("utf-8", "replace")).hexdigest()
+        pos = seen.get(h)
+        if pos is not None:
+            dups += 1
+            t = timeline[pos]
+            if tag != t["member"]:
+                dups_cross += 1
+                also = t.setdefault("also", [])
+                if tag not in also:
+                    also.append(tag)
+            t["dup_count"] = t.get("dup_count", 0) + 1
+            continue
+        seen[h] = len(timeline)
+        timeline.append({"ts": m["ts"], "role": m["role"], "member": tag, "text": m["text"]})
+
+    raw = sum(m["n_messages"] for m in members)
+    latest = max(members, key=lambda m: (m["updated"] or "", m["id"]))
+    starts = [m["created"] for m in members if m["created"]]
+    ends = [m["updated"] for m in members if m["updated"]]
+    title = " · ".join(title_terms) if title_terms else "(untitled)"
+    if latest.get("title"):
+        title += " — " + latest["title"]
+    return {
+        "schema": 1,
+        "group_id": gid,
+        "sig": sig,
+        "threshold": threshold,
+        "generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "title": title,
+        "terms": title_terms,
+        "latest_title": latest.get("title"),
+        "n_threads": len(members),
+        "members": members,
+        "sources": sorted(set(m["source"] for m in members if m["source"])),
+        "devices": sorted(set(m["device"] for m in members if m["device"])),
+        "span": {"start": min(starts) if starts else None, "end": max(ends) if ends else None},
+        "n_messages_raw": raw,
+        "dups_collapsed": dups,
+        "dups_cross_thread": dups_cross,
+        "dups_within_thread": dups - dups_cross,
+        "n_messages": len(timeline),
+        "timeline": timeline,
+    }
+
+
+def _fused_index_entry(dos):
+    keys = ("group_id", "sig", "threshold", "title", "terms", "latest_title", "n_threads",
+            "sources", "devices", "span", "n_messages_raw", "dups_collapsed", "dups_cross_thread", "dups_within_thread", "n_messages")
+    e = {k: dos[k] for k in keys}
+    e["members"] = [{"id": m["id"], "project": m["project"], "tag": m["tag"]} for m in dos["members"]]
+    return e
+
+
+def write_fused_dossiers(sess_list, vectors, edges, clusters, cluster_of):
+    t0 = time.time()
+    threshold = load_fuse_threshold()
+    _fused_mkdir()
+    prev = {}
+    try:
+        with open(FUSED_INDEX, "r", encoding="utf-8") as f:
+            for e in json.load(f).get("groups") or []:
+                prev[e.get("group_id")] = e
+    except Exception:
+        prev = {}
+
+    n = len(sess_list)
+    comps = _fused_components(n, edges, threshold)
+    index_groups = []
+    gid_of_idx = {}
+    built = reused = 0
+    for group in comps:
+        group = sorted(group)
+        gid = _fused_gid([sess_list[i]["id"] for i in group])
+        for i in group:
+            gid_of_idx[i] = gid
+        terms = _fused_centroid_terms(group, vectors)
+        fp = []
+        for i in group:
+            s = sess_list[i]
+            p = _fused_member_path(s)
+            try:
+                st = os.stat(p) if p else None
+            except OSError:
+                st = None
+            fp.append("%s|%s|%s|%s|%s" % (s["id"], s["project"], s.get("title"),
+                                          st.st_mtime_ns if st else "-", st.st_size if st else "-"))
+        sig = hashlib.sha1(("%s\n%s\n%s\nv2" % (threshold, "\n".join(sorted(fp)), " ".join(terms))).encode("utf-8")).hexdigest()
+        dpath = os.path.join(FUSED_DIR, gid + ".json")
+        old = prev.get(gid)
+        if old and old.get("sig") == sig and os.path.isfile(dpath):
+            index_groups.append(old)
+            reused += 1
+            continue
+        dos = _fused_build_dossier(gid, threshold, group, sess_list, terms, sig)
+        _fused_write_json(dpath, dos)
+        index_groups.append(_fused_index_entry(dos))
+        built += 1
+        del dos
+
+    live = set(g["group_id"] for g in index_groups)
+    removed = 0
+    for fn in os.listdir(FUSED_DIR):
+        stem = fn[:-5] if fn.endswith(".json") else (fn[:-9] if fn.endswith(".json.tmp") else None)
+        if stem and FUSED_GID_RE.match(stem) and (stem not in live or fn.endswith(".tmp")):
+            try:
+                os.remove(os.path.join(FUSED_DIR, fn))
+                removed += 1
+            except OSError:
+                pass
+
+    # deterministic order: size desc, then most recent activity first, then id
+    index_groups.sort(key=lambda g: g["group_id"])
+    index_groups.sort(key=lambda g: g["span"]["end"] or "", reverse=True)
+    index_groups.sort(key=lambda g: -g["n_threads"])
+
+    topics_members = defaultdict(list)
+    for i, s in enumerate(sess_list):
+        topics_members[cluster_of.get(i, 0)].append(i)
+    label_of = dict((c["id"], c["label"]) for c in clusters)
+    topics = []
+    for cid in sorted(topics_members):
+        idxs = topics_members[cid]
+        topics.append({
+            "topic_id": _fused_gid([sess_list[i]["id"] for i in idxs]),
+            "label": label_of.get(cid),
+            "size": len(idxs),
+            "members": [{"id": sess_list[i]["id"], "project": sess_list[i]["project"],
+                         "source": sess_list[i].get("source"), "device": sess_list[i].get("device"),
+                         "title": sess_list[i].get("title")} for i in idxs],
+            "fused": sorted(set(gid_of_idx[i] for i in idxs if i in gid_of_idx)),
+        })
+    stats = {
+        "groups": len(index_groups),
+        "threads_fused": sum(g["n_threads"] for g in index_groups),
+        "messages_raw": sum(g["n_messages_raw"] for g in index_groups),
+        "messages_merged": sum(g["n_messages"] for g in index_groups),
+        "dups_collapsed": sum(g["dups_collapsed"] for g in index_groups),
+        "dups_cross_thread": sum(g.get("dups_cross_thread", 0) for g in index_groups),
+        "cross_source_groups": sum(1 for g in index_groups if len(g["sources"]) > 1 or len(g["devices"]) > 1),
+        "topics": len(topics),
+        "threads_total": n,
+        "built": built, "reused": reused, "removed": removed,
+        "secs": round(time.time() - t0, 2),
+    }
+    generated = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _fused_write_json(FUSED_TOPICS, {"generated": generated, "topic_threshold": FUSED_TOPIC_THRESHOLD, "topics": topics})
+    _fused_write_json(FUSED_INDEX, {"generated": generated, "threshold": threshold,
+                                    "topic_threshold": FUSED_TOPIC_THRESHOLD, "stats": stats,
+                                    "groups": index_groups})
+    return stats
+
+
+def _fused_bg_reindex():
+    try:
+        run_index()
+    except Exception:
+        logger.exception("fused settings reindex failed")
+    finally:
+        _FUSED_REINDEX_PENDING.clear()
+
+
 def run_index():
-    global PROJECTS_CACHE, USAGE_CACHE
+    with INDEX_LOCK:
+        return _run_index()
+
+
+def _run_index():
+    global PROJECTS_CACHE, USAGE_CACHE, NONLOCAL_IDS
     t0 = time.time()
     overrides = load_titles_override()
 
@@ -1302,6 +1906,9 @@ def run_index():
                         "mtime": parsed["mtime"],
                         "msgs": parsed["msgs"],
                         "kb": parsed["kb"],
+                        "source": "claude-code",
+                        "device": LOCAL_DEVICE,
+                        "local": True,
                     }
                 )
                 docs.append(parsed["doc"])
@@ -1310,6 +1917,63 @@ def run_index():
                 )
     else:
         logger.warning("store dir not found: %s", STORE_DIR)
+
+    # Corpus mode: append every normalized thread. A Claude session that also
+    # exists in the local --root store is skipped (local copy is richer and
+    # resumable); duplicate thread ids / file stems keep the first (sorted) hit.
+    nonlocal_ids = set()
+    source_counts = Counter()
+    n_corpus = 0
+    if CORPUS_DIR:
+        local_ids = set(s["id"] for s in sessions)
+        seen_tids = set()
+        if os.path.isdir(CORPUS_DIR):
+            for fp in sorted(glob.glob(os.path.join(CORPUS_DIR, "*", "*", "*.json"))):
+                dev = os.path.basename(os.path.dirname(os.path.dirname(fp)))
+                src = os.path.basename(os.path.dirname(fp))
+                stem = os.path.splitext(os.path.basename(fp))[0]
+                if "sync-conflict" in stem or "." in dev or "." in src:
+                    continue
+                if not (is_safe_name(dev) and is_safe_name(src) and is_safe_name(stem)):
+                    continue
+                n_files += 1
+                try:
+                    parsed = parse_corpus_thread(fp, overrides.get(stem))
+                except Exception as e:
+                    logger.error("failed parsing corpus thread %s: %s", fp, e)
+                    continue
+                tid = parsed["tid"]
+                native = tid.split(":", 1)[1] if ":" in tid else tid
+                if src == "claude-code" and (native in local_ids or stem in local_ids):
+                    continue
+                if tid in seen_tids or stem in local_ids or stem in nonlocal_ids:
+                    continue
+                seen_tids.add(tid)
+                nonlocal_ids.add(stem)
+                n_corpus += 1
+                source_counts["%s/%s" % (dev, src)] += 1
+                sessions.append(
+                    {
+                        "id": stem,
+                        "title": parsed["title"],
+                        "project": "%s%s.%s" % (CORPUS_PROJECT_PREFIX, dev, src),
+                        "projectLabel": "%s / %s" % (dev, src),
+                        "mtime": parsed["mtime"],
+                        "msgs": parsed["msgs"],
+                        "kb": parsed["kb"],
+                        "source": src,
+                        "device": dev,
+                        "local": False,
+                        "cwd": parsed["cwd"],
+                    }
+                )
+                docs.append(parsed["doc"])
+                cost_rows.append((None, None, None))
+        else:
+            logger.warning("corpus dir not found: %s", CORPUS_DIR)
+    for s in sessions:
+        if s.get("local"):
+            source_counts["%s/%s" % (s["device"], s["source"])] += 1
 
     n = len(sessions)
     doc_tokens, idf = build_vocab(docs)
@@ -1329,6 +1993,10 @@ def run_index():
                 "mtime": sess["mtime"],
                 "msgs": sess["msgs"],
                 "kb": sess["kb"],
+                "source": sess.get("source"),
+                "device": sess.get("device"),
+                "local": sess.get("local", True),
+                "cwd": sess.get("cwd"),
                 "cluster": cluster_of.get(idx, 0),
                 "terms": top_terms(vectors[idx], 5),
                 "tw": top_terms_weighted(vectors[idx], 25),
@@ -1341,6 +2009,8 @@ def run_index():
         "sessions": ordered_sessions,
         "clusters": clusters,
         "edges": edges,
+        "corpus": bool(CORPUS_DIR),
+        "sources": dict(sorted(source_counts.items())),
     }
 
     tmp_path = DATA_JSON + ".tmp"
@@ -1353,15 +2023,23 @@ def run_index():
     with _STATE_LOCK:
         PROJECTS_CACHE = projects
         USAGE_CACHE = usage
+        NONLOCAL_IDS = frozenset(nonlocal_ids)
 
+    try:
+        fstats = write_fused_dossiers(sessions, vectors, edges, clusters, cluster_of)
+        logger.info("fused: %s", json.dumps(fstats, separators=(",", ":")))
+    except Exception:
+        logger.exception("fused dossier build failed")
     secs = round(time.time() - t0, 2)
     logger.info(
-        "indexed: files=%d sessions=%d clusters=%d edges=%d secs=%.2f",
+        "indexed: files=%d sessions=%d corpus=%d clusters=%d edges=%d secs=%.2f sources=%s",
         n_files,
         n,
+        n_corpus,
         len(clusters),
         len(edges),
         secs,
+        json.dumps(dict(sorted(source_counts.items())), separators=(",", ":")),
     )
     return {
         "nFiles": n_files,
@@ -1370,6 +2048,16 @@ def run_index():
         "nEdges": len(edges),
         "secs": secs,
     }
+
+
+def data_json_matches_mode():
+    """False when data.json was built in the other mode (corpus vs root-only)."""
+    try:
+        with open(DATA_JSON, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return bool(data.get("corpus")) == bool(CORPUS_DIR)
+    except Exception:
+        return False
 
 
 def data_json_is_fresh():
@@ -1556,6 +2244,15 @@ class StardriveHandler(BaseHTTPRequestHandler):
         if resume is not None and not is_safe_name(resume):
             self._send_json({"error": "invalid resume id"}, status=400)
             return
+        if resume is not None:
+            with _STATE_LOCK:
+                corpus_only = resume in NONLOCAL_IDS
+            if corpus_only:
+                self._send_json(
+                    {"error": "read-only corpus thread (other device/source): run/resume disabled"},
+                    status=403,
+                )
+                return
         if perm_mode not in ("default", "acceptEdits", "bypassPermissions"):
             self._send_json({"error": "invalid permissionMode"}, status=400)
             return
@@ -1573,6 +2270,10 @@ class StardriveHandler(BaseHTTPRequestHandler):
         if model is not None and (not isinstance(model, str) or not model.strip()):
             self._send_json({"error": "invalid model"}, status=400)
             return
+        if model is None and engine == "claude":
+            # Host Anthropic key has no credit (2026-09-16): default UI chats to GLM via the
+            # gateway. Override with GH_DEFAULT_MODEL (empty string = no pin).
+            model = os.environ.get("GH_DEFAULT_MODEL", "glm-4.6") or None
 
         if cwd_req:
             if not isinstance(cwd_req, str) or not os.path.isdir(cwd_req):
@@ -1619,9 +2320,28 @@ class StardriveHandler(BaseHTTPRequestHandler):
             if perm_mode != "default":
                 argv += ["--permission-mode", perm_mode]
 
+        # v5: per-child environment. Defaults to a plain copy of the service
+        # environment — byte-identical to the old no-env= behavior (the child
+        # inherits the parent's env either way). Only mutated for engine=claude
+        # with a glm-* model pin; opencode and the claude-with-no-model-pin path
+        # are untouched.
+        child_env = os.environ.copy()
+        if engine == "claude" and model and model.strip().lower().startswith("glm"):
+            _base, _tok, _which = glm_anthropic_endpoint()
+            if _tok:
+                logger.info("glm spawn routed via %s", _which)
+                child_env["ANTHROPIC_BASE_URL"] = _base
+                child_env["ANTHROPIC_AUTH_TOKEN"] = _tok
+                glm_key = _tok
+                child_env["ANTHROPIC_MODEL"] = model.strip()
+                child_env["ANTHROPIC_SMALL_FAST_MODEL"] = GLM_SMALL_FAST_MODEL
+            else:
+                logger.warning("glm model pinned (%s) but GLM_API_KEY missing/unreadable; spawning without GLM env override", model)
+
         creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         popen_kwargs = dict(
             cwd=run_cwd,
+            env=child_env,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -1770,6 +2490,22 @@ class StardriveHandler(BaseHTTPRequestHandler):
                 if not is_safe_name(project) or not is_safe_name(sid):
                     self._send_json({"error": "invalid project or id"}, status=400)
                     return
+                if CORPUS_DIR and project.startswith(CORPUS_PROJECT_PREFIX):
+                    cpath = resolve_corpus_thread(project, sid)
+                    if not cpath:
+                        self._send_json({"error": "invalid project or id"}, status=400)
+                        return
+                    if not os.path.isfile(cpath):
+                        self._send_json({"error": "session not found"}, status=404)
+                        return
+                    try:
+                        result = build_corpus_transcript(cpath, sid, load_titles_override().get(sid))
+                    except Exception as e:
+                        logger.exception("corpus transcript parse failed for %s", cpath)
+                        self._send_json({"error": str(e)}, status=500)
+                        return
+                    self._send_json(result)
+                    return
                 resolved = resolve_under_store(project, sid + ".jsonl")
                 if not resolved:
                     self._send_json({"error": "invalid project or id"}, status=400)
@@ -1785,6 +2521,29 @@ class StardriveHandler(BaseHTTPRequestHandler):
                     self._send_json({"error": str(e)}, status=500)
                     return
                 self._send_json(result)
+
+            elif path == "/api/fused":
+                if os.path.isfile(FUSED_INDEX):
+                    self._send_file(FUSED_INDEX, "application/json; charset=utf-8")
+                else:
+                    self._send_json({"groups": [], "stats": None, "threshold": load_fuse_threshold()})
+
+            elif path == "/api/fused/topics":
+                if os.path.isfile(FUSED_TOPICS):
+                    self._send_file(FUSED_TOPICS, "application/json; charset=utf-8")
+                else:
+                    self._send_json({"topics": []})
+
+            elif path.startswith("/api/fused/"):
+                gid = path[len("/api/fused/"):]
+                if not FUSED_GID_RE.match(gid):
+                    self._send_json({"error": "invalid group id"}, status=400)
+                    return
+                dpath = os.path.join(FUSED_DIR, gid + ".json")
+                if not os.path.isfile(dpath):
+                    self._send_json({"error": "dossier not found"}, status=404)
+                    return
+                self._send_file(dpath, "application/json; charset=utf-8")
 
             elif path == "/api/skills":
                 self._send_json({"skills": scan_skills()})
@@ -1847,7 +2606,7 @@ class StardriveHandler(BaseHTTPRequestHandler):
                 return
 
             # H1: all state-changing POSTs are CSRF-guarded (Sec-Fetch-Site / Origin).
-            if path in ("/refresh", "/api/chat", "/api/chat/stop"):
+            if path in ("/refresh", "/api/chat", "/api/chat/stop", "/api/fused/settings"):
                 if self._reject_cross_origin():
                     return
             if path == "/refresh":
@@ -1858,6 +2617,25 @@ class StardriveHandler(BaseHTTPRequestHandler):
                 except Exception as e:
                     logger.exception("refresh failed")
                     self._send_json({"ok": False, "error": str(e)}, status=500)
+
+            elif path == "/api/fused/settings":
+                if self._reject_non_json_ct():
+                    return
+                body, err = self._read_json_body()
+                if err:
+                    self._send_json({"error": err}, status=400)
+                    return
+                v = body.get("threshold") if isinstance(body, dict) else None
+                if not isinstance(v, (int, float)) or isinstance(v, bool) or not (0.5 <= v <= 0.95):
+                    self._send_json({"error": "threshold must be a number between 0.50 and 0.95"}, status=400)
+                    return
+                save_fuse_threshold(v)
+                started = False
+                if not _FUSED_REINDEX_PENDING.is_set():
+                    _FUSED_REINDEX_PENDING.set()
+                    threading.Thread(target=_fused_bg_reindex, daemon=True).start()
+                    started = True
+                self._send_json({"ok": True, "threshold": load_fuse_threshold(), "reindex": started})
 
             elif path == "/api/chat":
                 if not ENABLE_RUN:
@@ -1975,15 +2753,19 @@ def load_projects_cache_from_disk():
     """Warm PROJECTS_CACHE from an existing data.json without a full reindex
     (used at startup when data.json is already fresh, so run_index() — the
     only other place PROJECTS_CACHE gets built — never runs)."""
-    global PROJECTS_CACHE
+    global PROJECTS_CACHE, NONLOCAL_IDS
     if not os.path.isfile(DATA_JSON):
         return
     try:
         with open(DATA_JSON, "r", encoding="utf-8") as f:
             data = json.load(f)
         projects = compute_projects(data.get("sessions", []))
+        nonlocal_ids = frozenset(
+            s.get("id") for s in data.get("sessions", []) if s.get("local") is False
+        )
         with _STATE_LOCK:
             PROJECTS_CACHE = projects
+            NONLOCAL_IDS = nonlocal_ids
     except Exception as e:
         logger.warning("could not warm projects cache from data.json: %s", e)
 
@@ -2011,11 +2793,27 @@ def load_usage_cache_from_disk():
 
 
 def main():
-    global STORE_DIR, ENABLE_RUN, RUN_TIMEOUT, TOKEN, MAX_CHAT_PROCS
+    global STORE_DIR, ENABLE_RUN, RUN_TIMEOUT, TOKEN, MAX_CHAT_PROCS, CORPUS_DIR, LOCAL_DEVICE
     parser = argparse.ArgumentParser(description="Stardrive indexer + server")
     parser.add_argument("--index-only", action="store_true", help="index once and exit")
     parser.add_argument("--serve", action="store_true", help="index if stale, then serve")
     parser.add_argument("--root", default=STORE_DIR, help="Claude Code session store (default: ~/.claude/projects)")
+    parser.add_argument(
+        "--corpus",
+        default=None,
+        help="also index a normalized thread corpus (<dir>/<device>/<source>/*.json); --root stays indexed as local",
+    )
+    parser.add_argument(
+        "--local-device",
+        default=None,
+        help="device label for --root sessions (default: hostname)",
+    )
+    parser.add_argument(
+        "--reindex-minute",
+        type=int,
+        default=-1,
+        help="reindex every hour at this minute (0-59) while serving; -1 = off (default)",
+    )
     parser.add_argument("--bind", default=DEFAULT_BIND, help="interface to serve on (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="port (default: 8877)")
     parser.add_argument(
@@ -2039,9 +2837,30 @@ def main():
         "--token",
         default=None,
         help="require this bearer token on every request (Authorization: Bearer, "
-        "?token=, or gh_token cookie); required to bind a non-loopback --bind",
+        "?token=, or gh_token cookie); required to bind a non-loopback --bind. "
+        "Prefer --token-file: a --token value is visible in ps / /proc/<pid>/cmdline",
+    )
+    parser.add_argument(
+        "--token-file",
+        default=None,
+        help="read the bearer token from this file at startup (keeps the secret "
+        "out of argv); mutually exclusive with --token",
     )
     args = parser.parse_args()
+
+    if args.token_file:
+        if args.token:
+            print("use either --token or --token-file, not both", file=sys.stderr)
+            sys.exit(1)
+        try:
+            with open(os.path.expanduser(args.token_file), encoding="utf-8") as fh:
+                args.token = fh.read().strip()
+        except OSError as exc:
+            print("cannot read --token-file: %s" % exc.strerror, file=sys.stderr)
+            sys.exit(1)
+        if not args.token:
+            print("--token-file is empty", file=sys.stderr)
+            sys.exit(1)
 
     # Phase 1 safe-by-default: a non-loopback --bind with no --token would
     # serve every session, unauthenticated, to anyone who can reach the port.
@@ -2068,6 +2887,12 @@ def main():
         sys.exit(1)
 
     STORE_DIR = os.path.expanduser(args.root)
+    CORPUS_DIR = os.path.expanduser(args.corpus) if args.corpus else None
+    import socket
+    LOCAL_DEVICE = args.local_device or socket.gethostname() or "local"
+    if args.reindex_minute > 59:
+        print("invalid --reindex-minute %d: must be -1 or 0..59" % args.reindex_minute, file=sys.stderr)
+        sys.exit(1)
     ENABLE_RUN = args.enable_run
     RUN_TIMEOUT = args.run_timeout
     TOKEN = args.token
@@ -2075,8 +2900,11 @@ def main():
 
     configure_logging()
     logger.info(
-        "stardrive start (store=%s, enable_run=%s, run_timeout=%s, auth=%s)",
+        "stardrive start (store=%s, corpus=%s, device=%s, reindex_minute=%s, enable_run=%s, run_timeout=%s, auth=%s)",
         STORE_DIR,
+        CORPUS_DIR,
+        LOCAL_DEVICE,
+        args.reindex_minute,
         ENABLE_RUN,
         RUN_TIMEOUT,
         "on" if TOKEN else "off",
@@ -2091,11 +2919,13 @@ def main():
         return
 
     # default and --serve both: index if missing/stale, then serve.
-    if not data_json_is_fresh():
+    if not data_json_is_fresh() or not data_json_matches_mode():
         run_index()
     else:
         load_projects_cache_from_disk()
         load_usage_cache_from_disk()
+    if args.reindex_minute >= 0:
+        threading.Thread(target=reindex_loop, args=(args.reindex_minute,), daemon=True).start()
     start_server(args.bind, args.port)
 
 
