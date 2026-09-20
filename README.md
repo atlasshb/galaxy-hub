@@ -2,250 +2,209 @@
 
 # 🌌 GALAXY HUB
 
-**A local platform for your Claude Code work — pilot agents, map your session galaxy, all on your machine.**
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-d4a94f?style=flat-square)](LICENSE)
-[![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-4fd4c5?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![Zero dependencies](https://img.shields.io/badge/dependencies-zero-0b1020?style=flat-square)](#-why-galaxy-hub)
-[![Local-first](https://img.shields.io/badge/local--first-loopback-4fd4c5?style=flat-square)](#-security--privacy)
-[![Accessibility audited](https://img.shields.io/badge/accessibility-audited-d4a94f?style=flat-square)](#-accessibility)
-
-</div>
-
-![Galaxy Hub Home — a launcher of local apps for your Claude Code work](docs/img/hub-home.png)
-
-Claude Code stores every conversation as a `.jsonl` transcript, but the built-in UI only ever shows you a flat, chronological list. **Galaxy Hub** reads that store (read-only) and turns it into a workspace you can actually navigate: a local **hub of focused apps** behind one shell — read and resume any session as a real chat thread, see the *shape* of everything you've ever worked on, and keep the whole thing to **two auditable files** with no build step, no cloud, and no telemetry.
-
----
-
-## Contents
-
-- [Why Galaxy Hub](#-why-galaxy-hub)
-- [The apps](#-the-apps)
-- [Architecture](#-architecture)
-- [Quickstart](#-quickstart)
-- [Deploy](#-deploy)
-- [Security & privacy](#-security--privacy)
-- [Accessibility](#-accessibility)
-- [Roadmap](#-roadmap)
-- [Contributing](#-contributing)
-- [License](#-license)
-
----
-
-## 🌠 Why Galaxy Hub
-
-**Every other Claude Code tool renders a _list_. Galaxy Hub renders a _map_.**
-
-There are dozens of session viewers in the ecosystem. Every one of them answers the same question — *"show me my sessions"* — as a chronological, searchable feed. Galaxy Hub answers a different one: **"show me the shape of my work."** Sessions are auto-clustered by what they're *about*, laid out as a force-directed star-chart, and explained in plain language — click any node and it tells you which cluster it belongs to and *why* it links to each neighbour. Nobody else in the category does this.
-
-The second differentiator is the **stack**. Your transcripts contain your prompts, your code, and possibly your secrets. The rest of the ecosystem points React / Tauri / Electron / Node bundles — often hundreds of npm packages — straight at that data. Galaxy Hub is two files you can read end-to-end before you trust them:
-
-| | Galaxy Hub | Typical alternative |
-|---|---|---|
-| **Footprint** | 2 files — `stardrive.py` + `index.html` | Node / Electron / Tauri, hundreds of deps |
-| **Network** | zero external requests, ever | CDNs, fonts, analytics, telemetry |
-| **Binding** | loopback by default, Host-checked | varies |
-| **Store access** | read-only over `~/.claude` | varies |
-| **Visualization** | hand-rolled inline SVG / canvas | chart & graph libraries |
-
-Trust isn't a footnote here — it's a feature.
-
----
-
-## 🛸 The apps
-
-Galaxy Hub opens on **Hub Home** — a launcher grid of app cards, each with a glyph, a one-liner, and one live stat. A persistent **app rail** down the left switches between apps; the command palette (`Ctrl`/`Cmd`+`K`) jumps straight to any app, session, or view. Each app owns its own internal views, and everything stays in one URL hash so links and reloads land exactly where you left off.
-
-### 🚀 Stardrive — the prompt interface
-
-<table>
-<tr>
-<td width="55%">
-
-![Stardrive — read and resume any Claude Code session as a threaded chat](docs/img/stardrive.png)
-
-</td>
-<td width="45%">
-
-Read any session as a real, threaded conversation — tool calls, thinking, and per-turn cost and token stats included — then **prompt right there**. Start a new session or resume an existing one, streamed live through the Claude Code CLI over SSE, with a **Stop** button and `/` skill autocomplete. This is the app the original *Stardrive* project was; inside Galaxy Hub it's the cockpit you drive agents from.
-
-</td>
-</tr>
-</table>
-
-### 🕸 Nodes — the session galaxy
-
-<table>
-<tr>
-<td width="45%">
-
-Everything Galaxy Hub knows about the *shape* of your work, in four views. **Graph** is a force-directed star-chart where edges are topic similarity and nodes glow by cluster — focus a neighbourhood, expand it ring by ring, and read the story panel. **Tiles** shows the same clusters as cards; **Tree** as a project → topic → session hierarchy; **Fusion** surfaces groups of sessions that are probably the same thread of work, ready to merge or compact by hand.
-
-</td>
-<td width="55%">
-
-![Nodes — sessions as a force-directed star-chart of topic clusters](docs/img/nodes.png)
-
-</td>
-</tr>
-</table>
-
-### 🔒 Vault — everything you've saved
-
-<table>
-<tr>
-<td width="55%">
-
-![Vault — browse the memory and skills Claude Code knows](docs/img/vault.png)
-
-</td>
-<td width="45%">
-
-One place for everything Claude Code carries between sessions: your **memory** and your **skills**, browsable and one click from being used. The prompt / snippet library and cross-app search are on the way (see the [Roadmap](#-roadmap)).
-
-</td>
-</tr>
-</table>
-
-### 📊 Dashboard — usage, activity & cost
-
-<table>
-<tr>
-<td width="45%">
-
-Sessions and messages over time, per-project and per-cluster activity, and **cost / token totals** when your store carries them. The data layer already ships — a `GET /api/usage` endpoint aggregates it all at index time — and the charts are hand-rolled inline SVG — no chart library — so the zero-dependency law holds. Both the `/api/usage` data layer and the Dashboard app **ship today**.
-
-</td>
-<td width="55%">
-
-![Dashboard — usage, activity and cost analytics](docs/img/dashboard.png)
-
-</td>
-</tr>
-</table>
-
-### 🛰 Orchestration — parallel & multi-agent runs · _coming_
-
-Driving several agents at once, side by side. Designed, not yet built — tracked on the [Roadmap](#-roadmap).
-
-<div align="center">
-
-🌗 Light + dark themes · ♿ keyboard-operable, screen-reader aware, reduced-motion · 📱 responsive down to phone width — **across every app**.
+**A local hub for your Claude Code work — read and resume any session, see the shape of everything you've worked on, drive agents from one shell.**
 
 </div>
 
 ---
 
-## 🧭 Architecture
+## What Galaxy Hub actually is
 
-Two files. A Python-stdlib backend indexes your store into `data.json` plus a usage aggregate; one self-contained HTML page is the hub shell that renders every app from that data and streams live chat back through the Claude CLI.
+Galaxy Hub is a **session hub for Claude Code / opencode work**, shipped as two
+auditable files: `stardrive.py` (Python 3.8+, stdlib only — no `pip install`) and one
+self-contained `index.html`. It reads your Claude Code transcript store
+(`~/.claude/projects/*.jsonl`) read-only, indexes it into `data.json`, and serves a
+small HTTP API plus the single-page hub shell.
 
-```mermaid
-flowchart LR
-  S[("~/.claude/projects<br/>*.jsonl transcripts")]
-  subgraph BE["stardrive.py · Python stdlib only"]
-    I["Indexer<br/>parse · TF-IDF · cluster"]
-    D[("data.json")]
-    U[("/api/usage<br/>aggregate")]
-    A["HTTP API<br/>/api/transcript · /api/chat"]
-    I --> D
-    I --> U
-  end
-  subgraph FE["index.html · the Galaxy Hub shell"]
-    H["Hub Home + app rail"]
-    APPS["🚀 Stardrive · 🕸 Nodes · 🔒 Vault · 📊 Dashboard"]
-    H --> APPS
-  end
-  S -->|read-only| I
-  S -.->|per request| A
-  D --> APPS
-  U --> APPS
-  A <-->|SSE stream| APPS
-  APPS -->|--enable-run| CLI[["claude CLI"]]
+A typical hardened deployment runs it as a systemd unit bound to loopback, behind a
+reverse proxy that terminates TLS and enforces SSO, for example:
+
+```
+stardrive.py --bind 127.0.0.1 --port 8877 --token-file /path/to/token --enable-run --max-runs 8
 ```
 
-<details>
-<summary><strong>How it works</strong> — the indexing pipeline in four steps</summary>
+Two access paths are usual:
+- through an authenticating reverse proxy (path-relative API calls were added in commit
+  `290d2b5` so the hub can be embedded under a sub-path), and
+- directly on a private network interface only — because `--enable-run` lets the server
+  execute the `claude` CLI, never expose that route publicly.
 
-<br/>
+## Feature list (read out of the code)
 
-1. Streams the top-level `*.jsonl` transcripts (capped, malformed-line tolerant), extracting each session's title, messages, tool calls, and thinking.
-2. Builds TF-IDF vectors (English + Dutch stopwords) and computes pairwise cosine similarity.
-3. Union-find clustering over the similarity graph; top terms label each cluster; the top-25 weighted terms per session power the graph's plain-language connection explanations.
-4. One self-contained `index.html` renders every app from `data.json` — the graph physics is ~150 lines of hand-rolled velocity Verlet, no libraries.
+Galaxy Hub is organized as a **shell + apps** (see HUB-SPEC.md). Per the code and specs:
 
-</details>
+- **Hub Home** — launcher grid of app cards with a live stat each; app rail on the left;
+  command palette (Ctrl/Cmd+K); state kept in the URL hash (`#<app>/<view>`).
+- **Stardrive** (🚀) — the prompt/chat app: renders any session as a threaded
+  conversation (tool calls, thinking, per-turn cost/token stats), and — when
+  `--enable-run` is set — lets you prompt into it. New or resumed sessions stream live
+  over SSE through the `claude` CLI, spawned via direct `exec` (no shell), with a Stop
+  control and `/`-skill autocomplete. Concurrency is capped by `--max-runs` (1–8,
+  default 3; a hardened deployment may run the hard cap of 8) and each run is killed after
+  `--run-timeout` seconds (default 900).
+- **Nodes** (🕸) — the session galaxy: TF-IDF vectors (English + Dutch stopwords) over
+  parsed transcripts, pairwise cosine similarity, union-find clustering. Four views:
+  Graph (force-directed star-chart, hand-rolled ~150 lines of velocity-Verlet physics,
+  no charting library), Tiles, Tree (project → topic → session), and Fusion (candidate
+  same-thread session groups for manual merge/compact).
+- **Vault** (🔒) — browses what Claude Code carries between sessions: memory and skills.
+  Prompt/snippet library and cross-app search are roadmap, not shipped
+  (per HUB-SPEC.md wave 4).
+- **Dashboard** (📊) — `GET /api/usage` aggregates sessions/messages over time,
+  per-project and per-cluster activity, and cost/token totals when the store carries
+  `total_cost_usd` / `usage.input_tokens` / `usage.output_tokens`; charts are hand-rolled
+  inline SVG. Per HUB-SPEC.md this endpoint and the Dashboard UI are the "wave 2" build
+  and are stated in-repo as already shipped.
+- **Orchestration** (🛰) — parallel/multi-agent runs. Per HUB-SPEC.md this is designed,
+  not yet built (wave 3).
+- **Corpus mode** (added 2026-09-16, `--corpus <dir>`) — in addition to the local
+  `~/.claude` store, Galaxy Hub can index a second, normalized multi-source thread
+  corpus laid out as `<corpus>/<device>/<source>/<thread>.json` (schema 1). Local
+  sessions are labelled by `--local-device` (default: hostname); corpus sessions are
+  exposed as synthetic projects `corpus.<device>.<source>` and are read-only / never
+  resumable (`NONLOCAL_IDS`). Point it at any corpus directory. **UNKNOWN**: what populates that corpus directory
+  (which harness/device sources feed it) — out of scope of `stardrive.py` itself.
+- **Model routing via LiteLLM ("omnirouter")** — chat/run requests prefer an
+  Anthropic-compatible endpoint through a LiteLLM gateway
+  (`LITELLM_BASE_URL`, default `http://127.0.0.1:4100/v1`) because LiteLLM carries the
+  fallback chain; it falls back to a direct z.ai endpoint only if LiteLLM doesn't answer.
+  Commit `5ac019b` specifically fixed GLM-family models (`glm-*`) to route through
+  LiteLLM instead of hitting a 404 on the old path, and added `--token-file` support in
+  the same commit. `list_litellm_models()` does a best-effort, never-raising catalog
+  fetch against `LITELLM_BASE_URL + "/models"`.
+- **Accessibility** — keyboard-operable, ARIA semantics, reduced-motion support, light
+  and dark themes, responsive to phone width, claimed in-repo as audited (README's own
+  claim; no independent audit artifact was located in this pass — **UNKNOWN** whether a
+  formal audit report exists anywhere else in the repo).
 
----
+## Architecture
 
-## ⚡ Quickstart
+```
+~/.claude/projects/*.jsonl  (+ optional --corpus dir)
+        │  read-only
+        ▼
+stardrive.py (Python stdlib only)
+  ├─ Indexer: parse transcripts/corpus → TF-IDF → cosine similarity → union-find
+  │           clustering → data.json (+ /api/usage aggregate)
+  ├─ HTTP API: /api/transcript, /api/chat (SSE), /api/usage, model catalog, etc.
+  └─ --enable-run path: spawns `claude` CLI directly (exec, no shell), routed at
+     the model layer through the LiteLLM gateway (omnirouter) at LITELLM_BASE_URL,
+     falling back to z.ai direct if LiteLLM is unreachable
+        │
+        ▼
+index.html — one self-contained page, the "shell": Hub Home + app rail render every
+app (Stardrive, Nodes, Vault, Dashboard, [Orchestration]) from data.json / the API,
+streaming chat back over SSE
+```
+
+Two files, zero runtime dependencies, zero external network requests from either the
+server or the page (no CDN, fonts, or analytics). The re-indexer runs automatically
+when `data.json` is older than 6h, or on-demand (`Refresh` button, or `--reindex-minute`
+for a scheduled hourly rebuild while serving).
+
+## Install / run
 
 ```bash
-python3 stardrive.py            # index your store, then serve
+python3 stardrive.py            # index the store, then serve
 # open http://127.0.0.1:8877
 ```
 
-That's it — no `pip install`. Python 3.8+ is the only requirement (plus the `claude` CLI if you want Stardrive to actually run agents).
+No `pip install`. Requires Python 3.8+, and the `claude` CLI if you want Stardrive to
+actually run agents (`--enable-run`). For a production deploy as a systemd unit, see DEPLOY.md / DEPLOY-VPS.md for the
+unit/deploy-script details (not re-verified line-by-line in this pass).
 
-<details>
-<summary><strong>Command-line options</strong></summary>
+## Configuration flags (from `argparse` in `stardrive.py`, verified against source)
 
-<br/>
-
-| Option | Default | What |
+| Flag | Default | What |
 |---|---|---|
-| `--root PATH` | `~/.claude/projects` | Claude Code session store location |
-| `--bind IP` | `127.0.0.1` | interface to serve on (loopback by default) |
+| `--root PATH` | `~/.claude/projects` | Claude Code session store to index |
+| `--corpus DIR` | off | also index a normalized multi-source thread corpus (`<dir>/<device>/<source>/*.json`); `--root` stays indexed as local |
+| `--local-device NAME` | hostname | device label applied to `--root` sessions |
+| `--bind IP` | `127.0.0.1` | interface to serve on |
 | `--port N` | `8877` | port |
-| `--index-only` | | rebuild `data.json` and exit |
-| `--serve` | | serve without re-indexing |
-| `--enable-run` | off | allow Stardrive to actually run the `claude` CLI |
-| `--run-timeout N` | `900` | seconds before a chat process is killed |
-| `--token TOKEN` | off | require this bearer token on every request — needed to bind a non-loopback interface |
+| `--index-only` | off | rebuild `data.json` and exit |
+| `--serve` | off | serve without re-indexing first |
+| `--reindex-minute N` | `-1` (off) | reindex every hour at minute N while serving |
+| `--enable-run` | off | allow `POST /api/chat` to spawn the `claude` CLI |
+| `--run-timeout N` | `900` | seconds before a spawned chat process is killed |
+| `--max-runs N` | `3` | max concurrent chat/run processes; must be 1–8 |
+| `--token TOKEN` | off | require this bearer token on every request (`Authorization: Bearer`, `?token=`, or `gh_token` cookie); required to bind non-loopback |
+| `--token-file PATH` | off | read the bearer token from a file at startup instead of argv (keeps it out of `ps`/`/proc/<pid>/cmdline`); mutually exclusive with `--token` |
 
-</details>
+The flags above are example hardened values
+given for this task; the token itself is not read here (per operator rule, tokens are
+never printed/echoed).
 
-The indexer re-runs automatically when `data.json` is older than 6h, and the **Refresh** button re-indexes on demand. `data.json` (your indexed metadata) stays on your machine and is gitignored — never commit it.
+## Security posture
 
----
+- **Refuse-by-default on non-loopback bind.** The code explicitly checks
+  `is_loopback_bind(args.bind)` before doing any indexing work: a non-loopback `--bind`
+  with no `--token` is refused immediately at startup — "a non-loopback --bind with no
+  --token would serve every session, unauthenticated, to anyone who can reach the
+  port." Loopback binds with no token behave as before (no auth).
+- **Bearer token auth** — `--token` (or `--token-file`, preferred, to avoid the token
+  leaking via `ps`/`/proc/<pid>/cmdline`) is checked on every request, accepted via
+  `Authorization: Bearer`, `?token=`, or a `gh_token` cookie.
+- **Host header allowlist** — `ALLOWED_HOSTS` is computed from the actual bind/port at
+  startup (`compute_allowed_hosts`) and checked per-request, defending against
+  DNS-rebinding.
+- **`--enable-run` is the privileged switch.** Off by default; when on, `POST
+  /api/chat` can spawn the `claude` CLI. The spawn path uses direct `exec`, not a
+  shell, so prompt text can't be interpreted as shell syntax. This is exactly why the
+  recommended posture: a deployment running with `--enable-run` should be reachable
+  directly only over a private network — never bound to a public interface — with an
+  authenticating reverse proxy fronting it instead of exposing the
+  raw port.
+- **Read-only over the transcript store** — the server never writes into
+  `~/.claude`; only the `claude` CLI does, and only when the operator actually prompts.
+- **Concurrency cap** — `--max-runs` (hard cap 8) bounds how many chat/run subprocesses
+  can run at once, and `--run-timeout` kills a hung one.
+- **Corpus mode read-only guarantee** — corpus-sourced sessions are tracked in
+  `NONLOCAL_IDS` and are never resumable/executable, only browsable.
+- **UNKNOWN**: exact request-size/rate limiting, if any, beyond the concurrency cap —
+  not located in the slices read.
 
-## 🚢 Deploy
+## Relation to the other spec docs in the repo
 
-Galaxy Hub runs anywhere Python 3.8+ runs; Linux is the reference platform. Running it on a **remote desktop**? See **[DEPLOY.md](DEPLOY.md)** — the recommended pattern keeps the server loopback-only and reaches it over an **SSH tunnel**, so the server and your transcripts never leave that machine.
+- **HUB-SPEC.md** — the platform-level architecture doc this README is aligned to: the
+  shell/app taxonomy (Stardrive/Nodes/Vault/Dashboard/Orchestration), build waves, and
+  the "two auditable files, zero dependencies" guardrail. This README's app list and
+  wording track it directly.
+- **BUILD-SPEC.md, CONSOLE-SPEC.md, GRAPH-SPEC.md** — **UNKNOWN** in detail beyond
+  filenames; not opened in this pass (BUILD-SPEC presumably governs the build/release
+  process referenced by the swarm-release commits in the git log; GRAPH-SPEC presumably
+  specifies the Nodes force-directed graph behaviour described above; CONSOLE-SPEC
+  presumably specifies a console/terminal-style app or view not otherwise confirmed
+  here).
+- **ORCH-SPEC.md** — presumably the detailed spec for the not-yet-built Orchestration
+  app; **UNKNOWN** in detail, not opened in this pass.
+- **LANDSCAPE.md** — presumably the competitive-landscape doc backing the README's
+  "every other tool renders a list" positioning; **UNKNOWN** in detail, not opened.
+- **DEPLOY.md / DEPLOY-VPS.md** — deployment guidance (local/remote-desktop via SSH
+  tunnel per the existing README, and VPS deployment respectively); referenced but not
+  re-verified line-by-line here. A production systemd unit and its environment-specific
+  file selection are corroborated by git log entries (`49af08b`
+  "deploy.sh picks env-specific unit file", `60b1061` "prod unit enables run lanes").
+- **CONTRIBUTING.md** — contribution rules; not re-verified here, assumed unchanged
+  from the existing README's summary ("zero runtime dependencies, read-only over the
+  store, privacy first").
+- **BRAND-SPEC.md** — the visual identity (space-navy / atlas-gold / meridian-teal
+  palette, wordmark) referenced by HUB-SPEC.md's "Brand" section; not re-verified here.
 
----
+## What changed since the last README pass (from git log, most recent first)
 
-## 🔒 Security & privacy
+- `5ac019b` — fix: route `glm-*` models through LiteLLM; add `--token-file` support.
+- `71b6ec1` — feat: release swarm (orchestrator + 6 specialist agents, runbook,
+  `/release` command).
+- `49af08b` — fix: `deploy.sh` picks the env-specific unit file (staging no longer
+  gets the prod unit).
+- `290d2b5` — feat: path-relative API calls, enabling embedding Galaxy Hub inside Atlas
+  OS at `/os/apps/galaxy`.
+- `60b1061` — deploy: prod unit enables run lanes; `deploy.sh` installs the env unit
+  from the repo.
+- `73cf019` — feat: fold OpenClaw into Galaxy Hub (hub card with SSO link) +
+  ARCHITECTURE update.
 
-Your transcripts contain your prompts, code, and possibly secrets. Galaxy Hub treats that seriously:
+## License
 
-- **Read-only** over `~/.claude` — the server never writes into your store (only the `claude` CLI does, when *you* prompt).
-- **Loopback by default** — it binds `127.0.0.1` and validates the `Host` header; a Host allowlist plus cross-origin POST rejection defend against DNS-rebinding and CSRF from any website you happen to have open.
-- **Zero external requests** — no CDN, no fonts, no analytics, from either the server or the page. Everything is inline.
-- **`--enable-run` is opt-in.** Without it, chat is read-only (browse threads, no prompting). The spawn path uses direct exec — no shell — so a prompt can't inject commands. Never combine `--enable-run` with a non-loopback `--bind` on an untrusted network.
-- **`--token` for LAN / tailnet.** To reach Galaxy Hub from another device without an SSH tunnel, bind your tailnet interface and set `--token <secret>` — every request must then present the token, and the server *refuses to start* on a non-loopback interface without one. Open `http://host:port/?token=<secret>` once; a HttpOnly cookie keeps the session signed in.
-
----
-
-## ♿ Accessibility
-
-Every app is **keyboard-operable**, ships proper **ARIA** semantics with screen-reader support, and honours **reduced-motion** preferences — the graph animations included. Light and dark themes both meet reasonable contrast. As far as we know, Galaxy Hub is the **only accessibility-audited tool in its category**.
-
----
-
-## 🗺 Roadmap
-
-Next up: the **Dashboard** app UI over the live `/api/usage` layer, then **Orchestration** for parallel multi-agent runs, and a deeper intelligence layer — continuation-chain detection, timeline and cross-session recall, and an optional local-embeddings backend. The north star never moves: **map the shape of your Claude Code work, kept to two auditable, zero-dependency files.** Full detail in **[ROADMAP.md](ROADMAP.md)**.
-
----
-
-## 🤝 Contributing
-
-A community project of **[AI HUB Tilburg](https://github.com/atlasshb)**. Issues and PRs welcome — see **[CONTRIBUTING.md](CONTRIBUTING.md)**. The one rule that defines the product: **zero runtime dependencies, read-only over the store, privacy first.**
-
----
-
-## 📄 License
-
-[MIT](LICENSE)
+MIT (per existing README/LICENSE file — not independently re-verified in this pass).
