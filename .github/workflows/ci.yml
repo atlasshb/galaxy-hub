@@ -1,0 +1,22 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Byte-compile (syntax check)
+        run: python -m compileall -q stardrive.py
+      - name: Lint
+        run: |
+          pip install --quiet ruff
+          ruff check stardrive.py --select E9,F63,F7,F82
+      - name: Confirm stdlib-only
+        run: |
+          test ! -f requirements.txt && echo "no requirements.txt - stdlib only, as documented"
